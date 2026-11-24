@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pull requests · FreeTheGit</title>
+<link rel="stylesheet" href="/reader.css">
+<link rel="stylesheet" href="/pipelines.css">
+<script src="/identity.js" defer></script>
+<script src="/navigation.js" defer></script>
+<script src="/pipelines.js" defer></script>
+</head>
+<body class="product">
+<header class="app-bar"><a class="brand" href="/">freethegit</a><nav aria-label="Workspace"><a id="directory-reviews" data-page="reviews" href="#reviews">Pull requests</a><a id="directory-repos" data-page="repositories" href="#repositories">Repositories</a><a data-page="local-deployments" href="#local-deployments">Deployments</a><a data-page="pipelines" href="#pipelines">Pipelines</a><a href="/users">Users</a></nav></header>
+<div class="pipeline-layout" id="workspace-layout">
+<nav id="pipeline-projects" aria-label="Pipeline projects" hidden>
+<details class="nav-sections" open><summary>Projects</summary>
+<div id="projects"></div>
+<button id="add-project">New project</button>
+</details></nav>
+<main>
+<p id="notice" role="status"></p>
+<section id="host-directory" class="host-directory" aria-labelledby="directory-title">
+<div class="directory-heading"><h1 id="directory-title">Pull requests</h1><div class="directory-actions"><div id="local-identity"></div><button id="start-review" hidden>New pull request</button><button id="create-hosted" hidden>New repository</button></div></div>
+<label id="personal-view" hidden>Show <select id="personal-filter"><option value="all">All open reviews</option><option value="needsReview">Needs my review</option><option value="authored">Authored by me</option><option value="reviewed">Already reviewed</option></select></label>
+<input id="directory-search" type="search" placeholder="Filter by repository or pull request" aria-label="Filter review inbox">
+<ul id="directory-items" class="directory-items"><li class="directory-empty">Loading…</li></ul>
+<div id="review-empty-actions" hidden><a href="#repositories">Browse repositories</a></div>
+</section>
+<section id="local-deployments" class="workspace-deployments" hidden aria-labelledby="release-heading">
+<div class="release-heading"><h1 id="release-heading">Deployments</h1><button id="refresh-deployments" type="button">Refresh</button></div>
+<p id="release-status" role="status">Loading environments…</p>
+<ul id="release-list"></ul>
+<form id="publish-repository" hidden><label for="release-repo">Repository</label><select id="release-repo"></select><button>Deploy a revision</button></form>
+</section>
+<div id="pipeline-page" hidden>
+<div class="repo-intro"><p class="guide" id="project-name"></p>
+<h1 id="repo-name">Pipelines</h1>
+<p id="repo-url"></p>
+<p><a id="hosted-tools" hidden>Open repository</a></p>
+<button id="repo-settings" hidden>Repository settings</button>
+</div>
+<section id="editor" hidden>
+<div class="toolbar"><h2>Deployment pipeline</h2><button id="toggle-edit" aria-expanded="false">Edit pipeline</button></div>
+<p class="hint">These stages are configuration only. Use Local deployments to publish a revision.</p>
+<div id="editor-tools" hidden><button id="add-stage">Add stage</button></div>
+<ol id="stages"></ol>
+<div class="activity">
+<section><h2>Pull requests</h2><p id="review-description"></p><a id="review-link" hidden>View pull requests →</a></section>
+<section><h2>Pipeline runs</h2><p>No build runner configured.</p></section>
+<section><h2>Deployments</h2><p id="deploy-description"></p><a id="deploy-link" hidden>View deployments →</a></section>
+</div>
+</section>
+<p id="empty" hidden>Select or add a repository to configure its pipeline.</p>
+</div>
+</main>
+</div>
+<footer class="workspace-footer"><button type="button" id="try-review" hidden>Create example review</button><a href="/guide">Field guide</a><a href="http://127.0.0.1:8090/">WeftTrack ↗</a></footer>
+<dialog id="choose-repo" aria-labelledby="choose-title"><form method="get" action="/hosted"><h2 id="choose-title">New pull request</h2><label>Repository<select name="repo" id="review-repo" required></select></label><input type="hidden" name="view" value="pulls"><input type="hidden" name="new" value="1"><fieldset><button type="button" id="cancel-review">Cancel</button><button>Continue</button></fieldset></form></dialog>
+<dialog id="dialog" aria-labelledby="dialog-title">
+<form id="edit-form">
+<h2 id="dialog-title"></h2>
+<div id="fields"></div><p id="edit-error" role="alert"></p>
+<fieldset><button type="button" id="cancel">Cancel</button><button type="submit">Save</button></fieldset>
+</form>
+</dialog>
+</body>
+</html>

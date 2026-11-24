@@ -1,0 +1,83 @@
+:root {
+  color-scheme: light;
+  --ink: #192821;
+  --muted: #51645a;
+  --line: #dce3d9;
+  --paper: #fafbf6;
+  --green: #155b43;
+  font: 16px/1.65 system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: var(--green); text-underline-offset: .2em; }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  background: #152f25;
+  color: #d2e3d6;
+  padding: 1rem max(5vw, calc((100vw - 1500px)/2));
+}
+header > div, form { display: flex; gap: .8rem; align-items: center; }
+.brand { color: white; font-size: 1.4rem; font-weight: 750; text-decoration: none; }
+header span { border-left: 1px solid #668075; padding-left: .8rem; font-size: .85rem; }
+form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+input, button { font: inherit; border: 1px solid transparent; border-radius: .4rem; padding: .35rem .65rem; }
+input { min-width: 0; width: min(32vw, 19rem); background: #fff; }
+button { cursor: pointer; color: #173428; background: #d8eadc; font-weight: 650; }
+.layout { max-width: 1500px; margin: auto; display: grid; grid-template-columns: 225px minmax(0, 1fr) 250px; }
+nav, main, aside { min-width: 0; padding: clamp(1rem, 3vw, 2.5rem); }
+nav { padding-inline: 1.2rem; border-right: 1px solid var(--line); }
+aside { padding-inline: 1.2rem; border-left: 1px solid var(--line); }
+nav h2, aside h2, .guide { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 750; }
+nav h2, aside h2 { margin: 0 0 .8rem; }
+nav ul, aside ul { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+nav a { display: block; color: var(--muted); padding: .4rem .55rem; border-radius: .35rem; text-decoration: none; font-size: .875rem; line-height: 1.35; }
+nav a:hover, nav a[aria-current] { background: #e1ece1; color: var(--green); }
+nav a[aria-current] { font-weight: 750; }
+.guide { color: var(--green); margin: 0 0 .5rem; }
+h1 { font: 500 clamp(2.15rem, 4vw, 3.65rem)/1.06 Georgia, serif; letter-spacing: -.035em; margin: 0 0 1.6rem; }
+main h2 { font: 500 1.65rem/1.25 Georgia, serif; }
+main li + li { margin-top: .35rem; }
+pre { background: #1c342a; color: #e7f3e8; border-radius: .55rem; overflow: auto; padding: 1rem; }
+p code, li code, td code { background: #e8eee5; padding: .1em .25em; border-radius: .2em; overflow-wrap: anywhere; }
+.table-wrap { overflow: auto; }
+table { border-collapse: collapse; font-size: .875rem; width: 100%; }
+th, td { border-bottom: 1px solid var(--line); padding: .6rem; text-align: left; vertical-align: top; }
+th { background: #e8eee5; }
+aside { font-size: .875rem; }
+aside section + section { margin-top: 1.6rem; }
+aside li { border-top: 1px solid var(--line); padding: .6rem 0; }
+aside li span { display: block; color: var(--muted); font-size: .765rem; }
+.companion { background: #eef4eb; border: 1px solid var(--line); border-radius: .6rem; padding: .85rem; }
+.companion ul { margin-bottom: .55rem; }
+@media (max-width: 980px) {
+  .layout { grid-template-columns: 190px minmax(0, 1fr); }
+  aside { grid-column: 2; border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 620px) {
+  header { flex-wrap: wrap; }
+  form, input { width: 100%; }
+  .layout { display: flex; flex-direction: column; }
+  nav { order: 1; border-right: 0; border-top: 1px solid var(--line); }
+}
+
+.app-bar { background: #142337; gap: 1rem; flex-wrap: wrap; }
+.app-bar nav { display: flex; flex-wrap: wrap; padding: 0; gap: .35rem; border: 0; }
+.app-bar nav a { color: #dbe8e6; padding: .48rem .72rem; font-weight: 600; }
+.app-bar nav a:hover, .app-bar nav a[aria-current] { color: white; background: #355149; text-decoration: none; }
+.app-bar a:focus-visible, .nav-sections summary:focus-visible { outline: 3px solid #72bbaa; outline-offset: 2px; }
+.nav-sections > summary { cursor: pointer; color: var(--ink); font-size: 1.02rem; font-weight: 700; }
+.nav-sections[open] > summary { margin-bottom: 1rem; }
+.guide-search { display: flex; justify-content: flex-end; padding: .65rem clamp(1rem, 3vw, 2.5rem); border-bottom: 1px solid var(--line); }
+@media(max-width:650px) {
+  .layout { display: flex; flex-direction: column; }
+  .layout > nav { order: 0; border: 0; border-bottom: 1px solid var(--line); }
+  .app-bar { gap: .4rem; }
+  .app-bar nav { flex: 1 1 100%; }
+  .app-bar nav a { font-size: .82rem; padding: .4rem .55rem; }
+  .guide-search input { flex: 1; }
+}

@@ -1,0 +1,38 @@
+.hosted .repository-page { max-width: 72rem; }
+.repository-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem 1rem; }
+.repository-heading #local-identity { margin:0; }
+.repo-path { display:flex; flex-wrap:wrap; gap:.5rem; align-items:baseline; color:var(--muted); overflow-wrap:anywhere; }
+.repo-path h1, .repo-path > a:first-of-type { margin:0; color:var(--ink); font:700 1.25rem/1.4 system-ui,sans-serif; letter-spacing:-.025em; }
+.repo-path a { color:var(--green); }
+.hosted .repo-tabs { margin:1rem 0 1.2rem; background:transparent; }
+.pr-heading { display:flex; flex-direction:column; align-items:flex-start; gap:.5rem; }
+.pr-heading .review-state { margin:0; }
+.pr-heading h1 { margin:0; font-size:clamp(1.5rem,3vw,2.25rem); overflow-wrap:anywhere; }
+.pr-heading h1 small { color:var(--muted); font-weight:500; font-size:.7em; }
+.branch-pair { color:var(--muted); margin:.5rem 0 1rem; overflow-wrap:anywhere; }
+.merge-readiness { display:flex; flex-wrap:wrap; gap:.4rem .8rem; align-items:center; }
+.merge-readiness h3 { margin:0 auto 0 0; font-size:1rem; }
+.merge-readiness form { margin:0; }
+.merge-readiness .pr-more summary, .new-pr summary, .code-toolbar summary { cursor:pointer; color:var(--green); font-weight:650; }
+.pr-more { position:relative; }
+.pr-more[open] form { position:absolute; right:0; top:100%; z-index:1; padding:.5rem; width:max-content; background:white; border:1px solid var(--line); border-radius:.5rem; }
+.pr-sections { display:flex; flex-wrap:wrap; gap:.25rem; padding:0; border:0; border-bottom:1px solid var(--line); margin:1.4rem 0 1rem; }
+.pr-sections a { padding:.5rem .75rem; border-radius:0; font-weight:650; }
+.pr-sections a[aria-current] { color:var(--green); background:#eef5f2; box-shadow:inset 0 -2px var(--green); }
+.pr-sections span { color:var(--muted); font-size:.8rem; margin-left:.15rem; }
+[data-pr-panel] > h3:first-child, #changed-files > h3 { margin-top:.65rem; }
+.code-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1rem; border-bottom:1px solid var(--line); padding-bottom:1rem; }
+.code-toolbar :is(label,summary) { font-size:.875rem; }
+.code-toolbar input { display:block; font: .85rem ui-monospace,monospace; width:100%; min-width:0; }
+.new-pr { margin:.5rem 0 1.2rem; }
+.new-pr form { margin:.65rem 0; }
+.list-filters { display:flex; flex-wrap:wrap; gap:.25rem; }
+.list-filters button { color:var(--muted); background:transparent; }
+.list-filters button[aria-pressed="true"] { background:#e3efea; color:var(--green); }
+.host-footer { max-width:72rem; margin:auto; padding:1rem clamp(1rem,3vw,2.5rem); display:flex; gap:1rem; font-size:.85rem; }
+@media (max-width:600px) {
+  .hosted .repo-panel { padding:1rem; }
+  .merge-readiness h3 { flex-basis:100%; }
+  .pr-sections { gap:0; }
+  .pr-sections a { font-size:.85rem; padding:.5rem; }
+}

@@ -1,0 +1,246 @@
+"""Exercise review lifecycle operations against disposable, real Git repositories."""
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import sqlite3
+import subprocess
+import unittest
+from urllib.parse import urlencode
+
+import file_review
+from agent_report import record
+from hosted import git, page
+from file_review import changed_files, file_patch
+from web import create_review_example, repository_catalog
+
+
+class ReviewLifecycleTests(unittest.TestCase):
+    def setUp(self):
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.repo = self.root / "test" / "billing.git"
+        subprocess.run(["git", "init", "--bare", "--initial-branch=main", str(self.repo)],
+                       check=True, capture_output=True)
+        create_review_example(self.repo)
+        self.query = "repo=test/billing&pr=1"
+        self.head = self.rev("include-currency")
+        self.base = self.rev("main")
+        # Old installations have a five-column table and pre-existing review rows.
+        with sqlite3.connect(self.repo / "freethegit.sqlite3") as db:
+            db.execute("CREATE TABLE prs(source TEXT,target TEXT,head TEXT,base TEXT,title TEXT,UNIQUE(head,base))")
+            db.execute("INSERT INTO prs VALUES(?,?,?,?,?)", ("include-currency","main",self.head,self.base,"Review"))
+
+    def rev(self, ref):
+        return git(self.repo, "rev-parse", ref).decode().strip()
+
+    def submit(self, action, **values):
+        return page(self.root, self.query, urlencode(dict(action=action, **values)))
+
+    def test_large_file_sections_and_literal_names(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as checkout:
+            subprocess.run(["git", "clone", "-q", str(self.repo), checkout], check=True)
+            # Brackets normally mean a Git pathspec pattern.
+            name = "large[1].txt"
+            text = "section content 0123456789\n" * 8500 + "END_OF_LARGE_PATCH\n"
+            Path(checkout, name).write_text(text)
+            Path(checkout, "large1.txt").write_text("OTHER_FILE\n")
+            subprocess.run(["git", "-C", checkout, "add", "."], check=True)
+            subprocess.run(["git", "-C", checkout, "-c", "user.name=Test", "-c", "user.email=test@example.test",
+                            "commit", "-qm", "Large patch"], check=True)
+            subprocess.run(["git", "-C", checkout, "push", "-q", "origin", "HEAD:refs/heads/large"], check=True)
+        head = self.rev("large")
+        origin, changes = changed_files(self.repo, self.base, head)
+        change = next(c for c in changes.values() if c.label == name)
+        first, more = file_patch(self.repo, origin, head, change, 0)
+        self.assertTrue(more)
+        self.assertNotIn("END_OF_LARGE_PATCH", first)
+        second, more = file_patch(self.repo, origin, head, change, 1)
+        self.assertFalse(more)
+        self.assertIn("END_OF_LARGE_PATCH", second)
+        self.assertNotIn("OTHER_FILE", first + second)
+
+    def test_task_gate_and_merge_race(self):
+        self.submit("add-task", note="Check currency", token="f" * 32)
+        self.assertIn("Resolve open review tasks before merging.", self.submit("merge"))
+        self.assertEqual(self.rev("main"), self.base)
+        self.submit("set-task", task=1, resolved=1)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(self.submit, ["merge", "merge"]))
+        self.assertEqual(sum("Changes merged into main." in html for html in results), 1)
+        self.assertEqual(self.rev("main"), self.head)
+        self.assertEqual(self.rev("refs/freethegit/merges/1"), self.head)
+        self.assertIn("This pull request is merged.", self.submit("decline"))
+        with sqlite3.connect(self.repo / "freethegit.sqlite3") as db:
+            db.execute("UPDATE prs SET state='open'")
+        self.assertIn('class="review-state">Merged', page(self.root, self.query))
+
+    def test_changed_source_and_target(self):
+        git(self.repo, "update-ref", "refs/heads/include-currency", self.base)
+        self.assertIn("A branch changed since review", self.submit("merge"))
+        git(self.repo, "update-ref", "refs/heads/include-currency", self.head)
+        git(self.repo, "update-ref", "refs/heads/main", self.head)
+        self.assertIn("A branch changed since review", self.submit("merge"))
+
+    def test_refresh_stale_review_carries_only_open_tasks_once(self):
+        self.submit("add-task", note="Keep me", token="f" * 32)
+        self.submit("add-task", note="Done already", token="e" * 32)
+        self.submit("set-task", task=2, resolved=1)
+        record(self.root, "test/billing", 1, "Review agent", "run-1", self.head, "Earlier findings", "Tests passed")
+        updated = git(self.repo, "-c", "user.name=Test", "-c", "user.email=t@example.test",
+                      "commit-tree", self.rev("include-currency^{tree}"), "-p", self.head, "-m", "Update").decode().strip()
+        git(self.repo, "update-ref", "refs/heads/include-currency", updated)
+        old = page(self.root, self.query)
+        self.assertIn("Branch changes need review", old)
+        self.assertIn('value="merge" disabled', old)
+        for attempt in range(2):
+            self.assertIn("Open latest review #2", self.submit("refresh"))
+        new = page(self.root, "repo=test/billing&pr=2")
+        self.assertIn("Earlier review #1", new)
+        self.assertIn("Resolve 1 open task before merging", new)
+        self.assertIn("Keep me", new)
+        self.assertNotIn("Done already", new)
+        self.assertNotIn("Earlier findings", new)
+        self.assertIn("Earlier findings", page(self.root, self.query))
+
+    def test_personal_routing_is_snapshot_specific_and_advisory(self):
+        def act(number, actor, action, **kwargs):
+            return page(self.root, f"repo=test/billing&pr={number}",
+                        urlencode(dict(action=action, actor=actor, **kwargs)), actor)
+        def inbox(actor):
+            return repository_catalog(self.root, actor)[0]
+
+        self.assertIn("Choose a local reviewer identity first", act(1, "", "assign", person="sam"))
+        self.assertIn("Assigned @sam", act(1, "owner", "assign", person="Sam"))
+        self.assertTrue(inbox("sam")["reviews"][0]["needsReview"])
+        self.assertFalse(inbox("pat")["reviews"][0]["needsReview"])
+        _, changes = file_review.changed_files(self.repo, self.base, self.head)
+        key = next(iter(changes))
+        act(1, "owner", "file-review", file_key=key, reviewed="1", sha=self.head)
+        self.assertTrue(inbox("sam")["reviews"][0]["needsReview"])
+        self.assertIn("Reload this snapshot", act(1, "sam", "signoff", head=self.base, base=self.head))
+        self.assertIn("Review recorded for @sam", act(1, "sam", "signoff", head=self.head, base=self.base))
+        self.assertTrue(inbox("sam")["reviews"][0]["reviewed"])
+        self.assertIn("Personal review completion removed", act(1, "sam", "undo-signoff"))
+        act(1, "sam", "signoff", head=self.head, base=self.base)
+        act(1, "owner", "unassign", person="sam")
+        act(1, "owner", "assign", person="pat")
+        self.assertTrue(inbox("pat")["reviews"][0]["needsReview"])
+        self.assertTrue(inbox("sam")["reviews"][0]["reviewed"])
+        act(1, "owner", "assign", person="sam")
+        updated = git(self.repo, "-c", "user.name=Test", "-c", "user.email=t@example.test",
+                      "commit-tree", self.rev("include-currency^{tree}"), "-p", self.head, "-m", "Update").decode().strip()
+        git(self.repo, "update-ref", "refs/heads/include-currency", updated)
+        self.assertTrue(inbox("sam")["reviews"][0]["needsReview"])
+        self.assertFalse(inbox("sam")["reviews"][0]["reviewed"])
+        self.assertIn("branches changed", act(1, "pat", "signoff", head=self.head, base=self.base))
+        act(1, "owner", "refresh")
+        new = inbox("sam")
+        self.assertEqual(new["reviews"][0]["id"], 2)
+        self.assertTrue(new["reviews"][0]["needsReview"])
+        self.assertTrue(new["history"][0]["reviewed"])
+        self.assertIn("Changes merged into main.", act(2, "", "merge"))
+
+    def test_author_identity_and_assignment_are_independent(self):
+        git(self.repo, "update-ref", "refs/heads/extra", self.head)
+        page(self.root, "repo=test/billing", urlencode(dict(action="pr", title="Authored",
+             source="extra", target="main")), "mira")
+        reviews = repository_catalog(self.root, "mira")[0]["reviews"]
+        self.assertTrue(reviews[0]["authored"])
+        self.assertFalse(reviews[0]["needsReview"])
+        self.assertFalse(reviews[1]["authored"])
+        self.assertNotIn("authored", repository_catalog(self.root)[0]["reviews"][0])
+        self.assertIn("Your local identity changed", page(self.root, "repo=test/billing&pr=2",
+                      "action=assign&actor=previous&person=alice", "mira"))
+
+    def test_superseded_snapshot_is_read_only_and_rewind_starts_a_new_generation(self):
+        changed = git(self.repo, "-c", "user.name=Test", "-c", "user.email=t@example.test",
+                      "commit-tree", self.rev("include-currency^{tree}"), "-p", self.head, "-m", "Change").decode().strip()
+        git(self.repo, "update-ref", "refs/heads/include-currency", changed)
+        self.assertIn("Open latest review #2", self.submit("refresh"))
+        git(self.repo, "update-ref", "refs/heads/include-currency", self.head)
+        self.assertIn("This pull request is superseded", self.submit("merge"))
+        self.assertEqual(self.rev("main"), self.base)
+        self.assertIn("This pull request is superseded", self.submit("add-task", note="Late task", token="b"*32))
+        next_query = "repo=test/billing&pr=2"
+        self.assertIn("Open latest review #3", page(self.root, next_query, "action=refresh"))
+        self.assertIn("Open latest review #3", page(self.root, self.query))
+        self.assertIn("Changes merged into main.", page(self.root, "repo=test/billing&pr=3", "action=merge"))
+
+    def test_pr_sections_and_on_demand_combined_diff(self):
+        html = page(self.root, self.query)
+        for name in ("files","tasks","details"):
+            self.assertIn(f'data-pr-panel="{name}"', html)
+        self.assertIn("View combined diff", html)
+        self.assertNotIn('id="combined-patch"', html)
+        combined = page(self.root, self.query + "&combined=1")
+        self.assertIn('id="combined-patch"', combined)
+        self.assertIn('aria-label="Combined code diff"', combined)
+        self.assertIn('<details class="new-pr" open>', page(self.root, "repo=test/billing&view=pulls&new=1"))
+        file_page = page(self.root, "repo=test/billing&ref=include-currency&file=exports.py")
+        self.assertIn('ref=include-currency">← Repository files', file_page)
+        self.assertIn('aria-label="File contents"', file_page)
+
+    def test_branch_and_tag_can_have_the_same_name(self):
+        git(self.repo, "update-ref", "refs/tags/main", self.head)
+        html = page(self.root, "repo=test/billing&ref=main&file=exports.py")
+        self.assertIn("COLUMNS", html)
+        self.assertNotIn("currency", html.split('aria-label="File contents">')[1].split("</pre>")[0])
+        self.assertIn('name="sha" value="' + self.base, html)
+
+    def test_decline_is_terminal(self):
+        self.assertIn("Pull request declined.", self.submit("decline"))
+        self.assertIn("This pull request is declined.", self.submit("merge"))
+        self.assertIn("This pull request is declined.", self.submit("add-task", note="Closed", token="a"*32))
+        self.assertEqual(self.rev("main"), self.base)
+
+    def test_agent_report_retry_provenance_and_staleness(self):
+        link = "http://127.0.0.1:8090/?workspace=local&item=ae5ea668-a934-4cc4-b9eb-2b42e001852b#board"
+        args = (self.root, "test/billing", 1, "Review bot", "run-17", self.head)
+        for attempt in range(2):
+            record(*args, "Check <currency>", "5 tests passed", "EXPORT-9", link)
+        html = page(self.root, self.query)
+        self.assertEqual(html.count("Check &lt;currency&gt;"), 1)
+        self.assertIn("Reviewed snapshot", html)
+        self.assertIn("5 tests passed", html)
+        self.assertIn("EXPORT-9</a>", html)
+        self.assertIn('class="review-state">Open', html)
+        with self.assertRaises(ValueError):
+            record(*args, "Changed report", "5 tests passed", "EXPORT-9", link)
+        with self.assertRaises(ValueError):
+            record(*args, "Report", "5 tests passed", "EXPORT-9", "javascript:alert(1)")
+        git(self.repo, "update-ref", "refs/heads/include-currency", self.base)
+        self.assertIn("source branch has changed", page(self.root, self.query))
+
+    def branch_target(self, filename, content):
+        checkout = self.root / "checkout"
+        subprocess.run(["git", "clone", "-q", str(self.repo), str(checkout)], check=True)
+        (checkout / filename).write_text(content)
+        for args in (["add", filename], ["-c", "user.email=t@example.test", "-c", "user.name=Test",
+                     "commit", "-qm", "Change target"], ["push", "-q", "origin", "main"]):
+            subprocess.run(["git", "-C", str(checkout), *args], check=True)
+        self.submit("pr", source="include-currency", target="main", title="New review")
+        self.query = "repo=test/billing&pr=2"
+
+    def test_diverged_branches_merge_without_losing_target_changes(self):
+        self.branch_target("notes.txt", "Independent change")
+        target = self.rev("main")
+        self.assertIn("Changes merged into main.", self.submit("merge"))
+        self.assertEqual(self.rev("main^1"), target)
+        self.assertEqual(self.rev("main^2"), self.head)
+        self.assertEqual(git(self.repo, "show", "main:notes.txt"), b"Independent change")
+
+    def test_conflict_leaves_branches_open_and_unchanged(self):
+        self.branch_target("exports.py", 'COLUMNS = ["conflict"]\n')
+        target = self.rev("main")
+        preview = page(self.root, self.query)
+        self.assertIn("Resolve branch conflicts locally before merging", preview)
+        self.assertIn('value="merge" disabled', preview)
+        self.assertIn("could not merge these branches cleanly", self.submit("merge"))
+        self.assertEqual(self.rev("main"), target)
+        self.assertIn('class="review-state">Open', page(self.root, self.query))
+
+
+if __name__ == "__main__":
+    unittest.main()
