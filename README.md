@@ -1,4 +1,4 @@
-# Delivery Field Guide
+# freethegit
 
 An independent, open-source Python reference for learning Work Tracker and Repository Host through one SaaS feature launch. The example team builds scheduled CSV exports for billing reports.
 
