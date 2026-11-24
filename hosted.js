@@ -51,3 +51,20 @@ if (filterBar && records.length && !review) {
   });
   apply("open");
 }
+
+for (const button of document.querySelectorAll("[data-copy-field]")) {
+  button.hidden = false;
+  button.addEventListener("click", async () => {
+    const field = document.getElementById(button.dataset.copyField);
+    const status = document.getElementById("review-copy-status");
+    try {
+      await navigator.clipboard.writeText(field.value);
+      status.textContent = field.id === "assistant-brief" ? "Review brief copied." : "Git commands copied.";
+    } catch {
+      document.getElementById("review-tools").open = true;
+      field.focus();
+      field.select();
+      status.textContent = "Text selected. Use your browser’s Copy command.";
+    }
+  });
+}

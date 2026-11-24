@@ -33,7 +33,6 @@ def connect(root):
         yield db
 
 
-
 def password_hash(password, salt=None):
     if not 8 <= len(password) <= 256:
         raise ValueError("Use a password of 8–256 characters.")

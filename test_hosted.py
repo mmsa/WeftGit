@@ -183,6 +183,46 @@ class ReviewLifecycleTests(unittest.TestCase):
         self.assertIn('ref=include-currency">← Repository files', file_page)
         self.assertIn('aria-label="File contents"', file_page)
 
+    def test_copied_review_commands_read_the_immutable_comparison(self):
+        from html import unescape
+        import re
+        import shlex
+
+        # The checkout's hosted object directory remains available after branch updates.
+        host = self.root / ".repositories"
+        host.mkdir()
+        self.repo.parent.rename(host / "test")
+        self.repo = host / "test/billing.git"
+        with closing(sqlite3.connect(self.repo / "freethegit.sqlite3")) as db, db:
+            db.execute("UPDATE prs SET title='Private PR title'")
+        risky_note = "Private reviewer note"
+        page(host,self.query,urlencode(dict(action="add-task",note=risky_note,token="b"*32)))
+        def fields():
+            html = page(host,self.query)
+            return {key:unescape(value) for key,value in
+                    re.findall(r'<textarea id="([^"]+)"[^>]*>(.*?)</textarea>',html,re.S)}
+        before = fields()
+        self.assertIn("Open tasks when generated: 1",before["assistant-brief"])
+        self.assertNotIn(risky_note,before["assistant-brief"])
+        self.assertIn('PR title (quoted context): "Private PR title"',before["assistant-brief"])
+        self.assertNotIn("Private PR title",before["review-git-commands"])
+        self.assertIn(self.head,before["assistant-brief"])
+        self.assertIn(self.base,before["assistant-brief"])
+        moved = git(self.repo,"-c","user.name=Test","-c","user.email=t@example.test",
+                    "commit-tree",self.rev("main^{tree}"),"-p",self.base,"-m","Replacement").decode().strip()
+        git(self.repo,"update-ref","refs/heads/include-currency",moved)
+        after = fields()
+        self.assertIn("A branch has moved",after["assistant-brief"])
+        self.assertEqual(before["review-git-commands"],after["review-git-commands"])
+        results = [subprocess.check_output(shlex.split(line),cwd=self.root).decode()
+                   for line in after["review-git-commands"].splitlines()]
+        self.assertIn("Include currency",results[0])
+        self.assertNotIn("Replacement",results[0])
+        self.assertIn("exports.py",results[1])
+        self.assertIn("currency",results[2])
+        self.assertEqual(self.rev("include-currency"),moved)
+        self.assertEqual(self.rev("main"),self.base)
+
     def test_branch_and_tag_can_have_the_same_name(self):
         git(self.repo, "update-ref", "refs/tags/main", self.head)
         html = page(self.root, "repo=test/billing&ref=main&file=exports.py")

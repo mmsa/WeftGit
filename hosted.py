@@ -6,6 +6,8 @@ import deployments as releases
 import reviewers
 import file_review
 import task_anchors
+import review_brief
+from starter_readme import add_readme
 from uuid import uuid4
 import re
 from contextlib import closing
@@ -96,10 +98,18 @@ def page(root, query, body=None, actor="", active_users=None):
     repo = root / (slug + ".git")
     if repo.is_symlink() or repo.parent.is_symlink() or (repo / "freethegit.sqlite3").is_symlink() or not (repo / "HEAD").is_file():
         raise ValueError("Repository not found")
+    posted = parse_qs(body or "")
+    starting = posted.get("action") == ["start-readme"]
+    starter_notice = starter_error = ""
+    draft_description = posted.get("description", [""])[0] if starting else ""
+    if starting:
+        try:
+            starter_notice = add_readme(repo, slug.split("/")[1], draft_description)
+        except ValueError as error:
+            starter_error = str(error)
     tips = reviewers.branch_tips(repo)
     branches = [name.removeprefix("refs/heads/") for name in tips]
     ref = fields.get("ref", ["main" if "main" in branches else next(iter(branches), "")])[0]
-    posted = parse_qs(body or "")
     environment = fields.get("environment", ["staging"])[0]
     if posted.get("action") == ["deploy"]:
         ref = posted.get("ref", [ref])[0]
@@ -110,7 +120,7 @@ def page(root, query, body=None, actor="", active_users=None):
         ref = "main" if "main" in branches else next(iter(branches), "")
     commit = tips.get("refs/heads/" + ref, "")
     url = "/hosted?" + urlencode({"repo": slug, "ref": ref})
-    notice = ""
+    notice = starter_notice
     form_error = ""
     pr_form = {}
     view = fields.get("view", ["pulls" if "pr" in fields else "source"])[0]
@@ -385,6 +395,7 @@ def page(root, query, body=None, actor="", active_users=None):
             detail = f'''<article class="review-detail">
 <div class="pr-heading"><span class="review-state">{state.title()}</span><h1>{escape(title)} <small>#{number}</small></h1></div>
 <p class="branch-pair"><code>{escape(source)}</code> → <code>{escape(target)}</code></p>
+{review_brief.panel(slug,number,title,base,head,origin,stale,count,state)}
 <section class="merge-readiness" aria-label="Review readiness"><h3>{decision}</h3>
 
 {freshness_action}
@@ -420,6 +431,17 @@ def page(root, query, body=None, actor="", active_users=None):
     source_heading = escape(selected_path) if selected_path else "Repository files"
     source_content = (f'<a href="{action_url}">← Repository files</a><h2>{source_heading}</h2>{preview}'
                       if selected_path else '<ul class="record-list">' + (''.join(files) or '<li>No files yet. Push a commit to browse source.</li>') + '</ul>')
+    if not branches:
+        source_content = f'''<p>Add a README to describe your project, or push your existing code with Git.</p>
+<form class="starter-readme" action="/hosted?{urlencode({"repo":slug})}" method="post">
+<input type="hidden" name="action" value="start-readme"><label>Project description
+<textarea name="description" maxlength="500" rows="3" required>{escape(draft_description)}</textarea></label>
+<button>Create README.md</button></form>
+<details class="existing-project"><summary>Push an existing Git project</summary>
+<p>From your project directory, publish your current commit as the main branch.</p>
+<pre tabindex="0" aria-label="Git push command">git push http://127.0.0.1:8091/git/{escape(slug)}.git HEAD:refs/heads/main</pre></details>'''
+    if starter_error:
+        source_content = f'<p class="form-error" role="alert">{escape(starter_error)}</p>' + source_content
     new_pr_open = 'open' if fields.get('new') == ['1'] or form_error or (not prs and len(branches) > 1) else ''
     default_panel = "tasks" if posted.get("action") in (["add-task"], ["set-task"]) else "details" if posted.get("action") in (["signoff"], ["undo-signoff"], ["assign"], ["unassign"]) else "files"
     notice_link = '<a href="#review-tasks">View tasks</a>' if posted.get("action") == ["add-anchored-task"] else ""

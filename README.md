@@ -16,7 +16,7 @@ cd freethegit
 python3 web.py
 ```
 
-Open the local workspace and choose **Create example review** at the foot of the **Pull requests** page. It creates a real Git repository with two branches and a small change to a billing export. To bring your own code, choose **Repositories → New repository**, then use **Clone repository** on its Code page. [Open FreeTheGit](http://127.0.0.1:8091/)
+Open the local workspace and choose **Create example review** at the foot of the **Pull requests** page. It creates a real Git repository with two branches and a small change to a billing export. To start your own project, choose **Repositories → New repository**. On its Code page, describe what you want to build and select **Create README.md** to make the first Git commit from the browser. If you already have a local project, expand **Push an existing Git project** and run the command from your project directory. [Open FreeTheGit](http://127.0.0.1:8091/)
 
 ## Review a change
 
@@ -24,7 +24,9 @@ Open the local workspace and choose **Create example review** at the foot of the
 2. **Review a later push.** Choose **Open fresh review**. Unresolved tasks carry forward with links to their original code. Unchanged files keep their shared review marks. Personal sign-offs stay with the commits each person saw.
 3. **Merge the reviewed commits.** Resolve the open tasks and select **Merge pull request**. FreeTheGit rechecks both branch tips and reports stale revisions or conflicts before changing the target branch.
 
-**Working with an agent?** In **Review details → Attach an agent report**, copy the command generated for that PR. It records the agent's findings, test results, run ID, and reviewed commit. Add `--work-item` and `--work-url` to link a requirement in a local WeftTrack workspace. Reviewers can see when a report refers to an earlier revision.
+**Review with an assistant.** Choose **Copy review brief** on a pull request and paste it into an assistant with access to the FreeTheGit checkout. The brief specifies the reviewed commits, the full change to inspect, and where to find open tasks. To inspect it yourself, expand **Review brief and Git commands**. The commands read the saved objects directly from the hosted repository, so a later push does not change the comparison.
+
+**Attach the results.** In **Review details → Attach an agent report**, copy the command generated for that PR. It records the agent's findings, test results, run ID, and reviewed commit. Add `--work-item` and `--work-url` to link a requirement in a local WeftTrack workspace. Reviewers can see when a report refers to an earlier revision.
 
 ## Publish a snapshot
 
