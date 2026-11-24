@@ -1,0 +1,21 @@
+[
+  ["repo-host-git", "repo-host-setup", "hosts history in"],
+  ["repo-host-setup", "repo-host-auth", "controls access with"],
+  ["repo-host-setup", "repo-host-storage", "stores source and assets"],
+  ["repo-host-setup", "repo-host-review", "governs changes through"],
+  ["repo-host-review", "repo-host-pipelines", "validates changes with"],
+  ["repo-host-pipelines", "repo-host-admin", "runs within plan limits"],
+  ["work-tracker-overview", "work-tracker-structure", "organizes tracking through"],
+  ["work-tracker-structure", "work-tracker-daily", "supports everyday work"],
+  ["work-tracker-daily", "work-tracker-workflow", "moves work through"],
+  ["work-tracker-workflow", "work-tracker-planning", "feeds board metrics"],
+  ["work-tracker-planning", "work-tracker-search", "builds views from filters"],
+  ["work-tracker-search", "work-tracker-automation", "selects matching items for"],
+  ["work-tracker-automation", "work-tracker-governance", "executes with permissions from"],
+  ["work-tracker-governance", "work-tracker-platform", "sets boundaries for integrations"],
+  ["work-tracker-platform", "work-tracker-adoption", "depends on deployment and plan"],
+  ["work-tracker-daily", "repo-host-review", "links BILL-42 to its pull request"],
+  ["repo-host-pipelines", "work-tracker-planning", "provides deployment evidence"],
+  ["work-tracker-adoption", "work-tracker-reference", "summarized in"],
+  ["repo-host-admin", "repo-host-reference", "summarized in"]
+]
