@@ -8,6 +8,7 @@ import file_review
 import task_anchors
 from uuid import uuid4
 import re
+from contextlib import closing
 import sqlite3
 import subprocess
 from urllib.parse import parse_qs, urlencode
@@ -116,7 +117,7 @@ def page(root, query, body=None, actor="", active_users=None):
     if view not in ("source", "pulls", "deploys"):
         view = "source"
     selected_pr = fields.get("pr", [""])[0]
-    with sqlite3.connect(repo / "freethegit.sqlite3") as db:
+    with closing(sqlite3.connect(repo / "freethegit.sqlite3")) as db, db:
         db.execute("BEGIN IMMEDIATE")
         db.execute("CREATE TABLE IF NOT EXISTS prs (source TEXT, target TEXT, head TEXT, base TEXT, title TEXT, UNIQUE(head, base))")
         db.execute("CREATE TABLE IF NOT EXISTS deployments (environment TEXT, commit_id TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)")

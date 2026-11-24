@@ -2,6 +2,7 @@
 import argparse
 from pathlib import Path
 import re
+from contextlib import closing
 import sqlite3
 import subprocess
 from urllib.parse import urlsplit
@@ -39,7 +40,7 @@ def record(root, repo, pr, agent, run, sha, summary, tests, work_item="", work_u
         if (target.scheme != "http" or target.netloc not in ("127.0.0.1:8090", "localhost:8090")
                 or target.path not in ("", "/") or any(ord(char) < 32 for char in work_url)):
             raise ValueError("Use a local WeftTrack work item link on port 8090.")
-    with sqlite3.connect(db_path) as db:
+    with closing(sqlite3.connect(db_path)) as db, db:
         db.execute("BEGIN IMMEDIATE")
         if not db.execute("SELECT 1 FROM prs WHERE rowid=?", (pr,)).fetchone():
             raise ValueError("Unknown pull request.")

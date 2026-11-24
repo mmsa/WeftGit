@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
+from contextlib import closing
 import sqlite3
 
 import local_users
@@ -64,7 +65,7 @@ class UserDirectoryTests(TestCase):
         for name in ("broken","existing"):
             (self.root/"team"/(name+".git")).mkdir(parents=True)
         (self.root/"team/broken.git/freethegit.sqlite3").write_bytes(b"broken")
-        with sqlite3.connect(self.root/"team/existing.git/freethegit.sqlite3") as db:
+        with closing(sqlite3.connect(self.root/"team/existing.git/freethegit.sqlite3")) as db, db:
             db.execute("CREATE TABLE pr_authors(pr INTEGER PRIMARY KEY, person TEXT NOT NULL)")
             db.execute("INSERT INTO pr_authors VALUES(1,'legacy')")
             db.execute("CREATE TABLE pr_signoffs(pr INTEGER, legacy_column TEXT)")

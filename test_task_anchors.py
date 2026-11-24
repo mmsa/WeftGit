@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.parse import urlencode
 from uuid import uuid4
+from contextlib import closing
 import sqlite3
 import subprocess
 import unittest
@@ -54,7 +55,7 @@ class AnchoredTaskTests(unittest.TestCase):
         return page(self.root,self.query+"&changed="+key,urlencode(data))
 
     def context(self):
-        with sqlite3.connect(self.repo/"freethegit.sqlite3") as db:
+        with closing(sqlite3.connect(self.repo/"freethegit.sqlite3")) as db, db:
             return db.execute("""SELECT t.pr,a.origin_pr,a.side,a.revision,a.line,a.excerpt,a.path
                               FROM review_tasks t LEFT JOIN task_anchors a ON a.task=t.id ORDER BY t.id""").fetchall()
 

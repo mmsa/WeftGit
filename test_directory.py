@@ -1,4 +1,5 @@
 """The review inbox must also work with repositories created before review states."""
+from contextlib import closing
 import sqlite3
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -17,15 +18,15 @@ class DirectoryTests(unittest.TestCase):
             database = repo / "freethegit.sqlite3"
             self.assertEqual(repository_catalog(root), [{"name": "team/web", "reviews": []}])
             self.assertFalse(database.exists())
-            with sqlite3.connect(database) as db:
+            with closing(sqlite3.connect(database)) as db, db:
                 db.execute("CREATE TABLE prs(title,source,target)")
                 db.execute("INSERT INTO prs VALUES('New search','feature','main')")
             self.assertEqual(repository_catalog(root)[0]["reviews"][0]["title"], "New search")
-            with sqlite3.connect(database) as db:
+            with closing(sqlite3.connect(database)) as db, db:
                 db.execute("ALTER TABLE prs ADD state TEXT DEFAULT 'open'")
                 db.execute("UPDATE prs SET state='merged'")
             self.assertEqual(repository_catalog(root)[0]["reviews"], [])
-            with sqlite3.connect(database) as db:
+            with closing(sqlite3.connect(database)) as db, db:
                 db.execute("UPDATE prs SET state='open'")
                 db.execute("INSERT INTO prs(title,source,target) VALUES('Fresh review','feature','main')")
                 db.execute("CREATE TABLE review_history(previous,successor)")

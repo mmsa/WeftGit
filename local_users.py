@@ -18,18 +18,20 @@ class Denied(ValueError):
     pass
 
 
+@contextmanager
 def connect(root):
     root.mkdir(parents=True, exist_ok=True)
     path = root / ".users.sqlite3"
     if path.is_symlink():
         raise OSError("User database unavailable")
-    db = sqlite3.connect(path)
-    db.row_factory = sqlite3.Row
-    db.execute("""CREATE TABLE IF NOT EXISTS users(handle TEXT PRIMARY KEY, name TEXT NOT NULL,
-               role TEXT NOT NULL, active INTEGER NOT NULL, secret TEXT)""")
-    db.execute("""CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, handle TEXT NOT NULL,
-               expires INTEGER NOT NULL)""")
-    return db
+    with closing(sqlite3.connect(path)) as db:
+        db.row_factory = sqlite3.Row
+        db.execute("""CREATE TABLE IF NOT EXISTS users(handle TEXT PRIMARY KEY, name TEXT NOT NULL,
+                   role TEXT NOT NULL, active INTEGER NOT NULL, secret TEXT)""")
+        db.execute("""CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, handle TEXT NOT NULL,
+                   expires INTEGER NOT NULL)""")
+        yield db
+
 
 
 def password_hash(password, salt=None):
@@ -51,7 +53,7 @@ def profile(db, token):
 def state(root, token=""):
     if not (root / ".users.sqlite3").is_file():
         return False, None
-    with closing(connect(root)) as db:
+    with connect(root) as db:
         configured = bool(db.execute("SELECT 1 FROM users WHERE role='owner' LIMIT 1").fetchone())
         user = profile(db, token)
         return configured, dict(user) if user else None
@@ -91,7 +93,7 @@ def import_handles(root, db):
 def change(root, token, data):
     """Apply one form action and return a new session token, an empty token to clear, or None."""
     action = data.get("action","")
-    with closing(connect(root)) as db, db:
+    with connect(root) as db, db:
         db.execute("BEGIN IMMEDIATE")
         actor = profile(db, token)
         if action == "logout":
@@ -180,7 +182,7 @@ def reviewer_context(root, token, writing=False):
     if not (root / ".users.sqlite3").is_file():
         yield None, None
         return
-    with closing(connect(root)) as db:
+    with connect(root) as db:
         db.execute("BEGIN")
         configured = db.execute("SELECT 1 FROM users WHERE role='owner' LIMIT 1").fetchone()
         actor = profile(db,token)
@@ -193,7 +195,7 @@ def reviewer_context(root, token, writing=False):
 
 def page(root, token, return_to="/users", error="", draft=None):
     draft = draft or {}
-    with closing(connect(root)) as db:
+    with connect(root) as db:
         current = profile(db,token)
         accounts = db.execute("SELECT handle,name,role,active FROM users ORDER BY active DESC,name,handle").fetchall()
     manager = current and current["role"] in ("admin","owner")

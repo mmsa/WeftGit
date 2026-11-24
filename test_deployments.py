@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from urllib.parse import urlencode
 import os
+from contextlib import closing
 import sqlite3
 import subprocess
 import unittest
@@ -130,7 +131,7 @@ class DeploymentTests(unittest.TestCase):
         artifact = self.repo / "deployments/prod" / f"{sha}.zip"
         artifact.parent.mkdir(parents=True)
         self.git("archive", "--format=zip", f"--output={artifact}", sha)
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute("INSERT INTO deployments(environment,commit_id) VALUES('prod',?)", (sha,))
         release = summary(self.repo, "team/site", "prod", sha)
         self.assertTrue(release["available"])
@@ -150,7 +151,7 @@ class DeploymentTests(unittest.TestCase):
         release = summary(self.repo, "team/site", "staging", sha)
         for name in ("../private.txt", "%2e%2e/private.txt", "index.html%2f..", "link.html", "bad.js", ".git/config"):
             self.assertEqual(self.fetch(release["site"] + name).status, 404, name)
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM deployments").fetchone()[0], 1)
             with patch("deployments.subprocess.run", side_effect=subprocess.CalledProcessError(1, "git")):
                 with self.assertRaises(subprocess.CalledProcessError):

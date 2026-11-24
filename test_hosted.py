@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from contextlib import closing
 import sqlite3
 import subprocess
 import unittest
@@ -27,7 +28,7 @@ class ReviewLifecycleTests(unittest.TestCase):
         self.head = self.rev("include-currency")
         self.base = self.rev("main")
         # Old installations have a five-column table and pre-existing review rows.
-        with sqlite3.connect(self.repo / "freethegit.sqlite3") as db:
+        with closing(sqlite3.connect(self.repo / "freethegit.sqlite3")) as db, db:
             db.execute("CREATE TABLE prs(source TEXT,target TEXT,head TEXT,base TEXT,title TEXT,UNIQUE(head,base))")
             db.execute("INSERT INTO prs VALUES(?,?,?,?,?)", ("include-currency","main",self.head,self.base,"Review"))
 
@@ -72,7 +73,7 @@ class ReviewLifecycleTests(unittest.TestCase):
         self.assertEqual(self.rev("main"), self.head)
         self.assertEqual(self.rev("refs/freethegit/merges/1"), self.head)
         self.assertIn("This pull request is merged.", self.submit("decline"))
-        with sqlite3.connect(self.repo / "freethegit.sqlite3") as db:
+        with closing(sqlite3.connect(self.repo / "freethegit.sqlite3")) as db, db:
             db.execute("UPDATE prs SET state='open'")
         self.assertIn('class="review-state">Merged', page(self.root, self.query))
 
