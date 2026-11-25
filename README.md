@@ -1,10 +1,10 @@
 # FreeTheGit
 
-FreeTheGit is a local Git host for people who review code alongside agents. A review task can point to a line in a file that has since been renamed. Open it and you still see the code the reviewer meant.
-
-![FreeTheGit running locally](docs/preview.png)
+A local Git host for reviewing code with people and coding assistants. Browse a repository, review a pull request, and publish a static snapshot on your machine. Review tasks stay linked to the original lines, even after a later push renames the file.
 
 [Quickstart](#quickstart) · [Review a change](#review-a-change) · [Publish a snapshot](#publish-a-snapshot) · [Local accounts and storage](#local-accounts-and-storage) · [Development](#development)
+
+![FreeTheGit pull request showing the changed file, review tasks, and merge readiness for a billing export](docs/preview.png)
 
 ## Quickstart
 
@@ -49,5 +49,7 @@ python3 -m unittest discover -v
 ```
 
 The bundled field guide follows a team shipping scheduled CSV exports. Read it in the browser, use the Markdown guides directly, or run `python3 fieldguide.py list` to see chapter IDs. The CLI also supports `show`, `search`, `related`, and `graph`. [Browser field guide](http://127.0.0.1:8091/guide) · [Repository hosting](guides/repo-host.md) · [Work tracking](guides/work-tracker.md)
+
+To connect a review to its original requirement, run the companion work tracker alongside FreeTheGit. [WeftTrack on GitHub](https://github.com/mmsa/WeftTrack)
 
 Code and documentation are released under the [MIT license](LICENSE).
