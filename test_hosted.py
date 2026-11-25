@@ -9,6 +9,7 @@ import unittest
 from urllib.parse import urlencode
 
 from release_receipts import lookup
+import task_reviews
 import file_review
 from agent_report import record
 from hosted import git, page
@@ -142,6 +143,80 @@ class ReviewLifecycleTests(unittest.TestCase):
         self.assertTrue(lookup(self.root, params, origin)["verified"])
         git(self.repo, "update-ref", "refs/freethegit/merges/1", self.base)
         self.assertFalse(lookup(self.root, params, origin)["verified"])
+
+    def test_task_key_lookup_and_verified_merge_status(self):
+        origin = "http://127.0.0.1:8091"
+        params = {"key":["WT-001"]}
+        def results():
+            return task_reviews.lookup(self.root, params, origin)
+        page(self.root, self.query)
+        with closing(sqlite3.connect(self.repo / "weftgit.sqlite3")) as db, db:
+            db.execute("UPDATE prs SET title='[wt-001] fix tax'")
+            for branch in ("XWT-001", "WT-0012", "WT-001b", "WT-001_suffix", "WT-1", "WT-001é"):
+                git(self.repo, "update-ref", "refs/heads/"+branch, self.head)
+                db.execute("INSERT INTO prs(source,target,head,base,title) VALUES(?,?,?,?,?)",
+                           (branch,"main",self.head,self.base,branch))
+        branch = "feature/WT-001-export"
+        git(self.repo, "update-ref", "refs/heads/"+branch, self.head)
+        self.assertEqual([b["source_branch"] for b in results()["branches"]], [branch])
+        match, = results()["matches"]
+        self.assertEqual((match["matched_in"],match["staging_status"]), (["title"],"unmerged"))
+        self.assertIn("Changes merged", self.submit("merge"))
+        match, = results()["matches"]
+        self.assertTrue(match["merge_verified"])
+        self.assertEqual(match["staging_status"], "awaiting_staging")
+        page(self.root, self.query, urlencode(dict(action="deploy", ref="main", sha=self.head, environment="prod")))
+        self.assertEqual(results()["matches"][0]["staging_status"], "awaiting_staging")
+        page(self.root, self.query, urlencode(dict(action="deploy", ref="main", sha=self.head, environment="staging")))
+        self.assertEqual(results()["matches"][0]["staging_status"], "staged")
+        git(self.repo, "update-ref", "refs/heads/main", self.base)
+        page(self.root, self.query, urlencode(dict(action="deploy", ref="main", sha=self.base, environment="staging")))
+        self.assertEqual(results()["matches"][0]["staging_status"], "previously_staged")
+        git(self.repo, "update-ref", "-d", "refs/weftgit/merges/1")
+        match, = results()["matches"]
+        self.assertFalse(match["merge_verified"])
+        self.assertEqual(match["staging_status"], "unverified")
+
+    def test_task_key_ambiguity_scoping_and_supersession(self):
+        import shutil
+        page(self.root, self.query)
+        branch = "feature/WT-007-export"
+        git(self.repo, "update-ref", "refs/heads/"+branch, self.head)
+        with closing(sqlite3.connect(self.repo / "weftgit.sqlite3")) as db, db:
+            db.execute("UPDATE prs SET source=?,title='[WT-007] update'", (branch,))
+            db.execute("INSERT INTO prs(source,target,head,base,title,state) VALUES(?,?,?,?,?,'superseded')",
+                       (branch,"main",self.base,self.head,"WT-007 old"))
+        shutil.copytree(self.repo, self.repo.parent / "second.git")
+        origin = "http://127.0.0.1:8091"
+        result = task_reviews.lookup(self.root, {"key":["WT-007"]}, origin)
+        self.assertEqual([r["repository"] for r in result["matches"]], ["test/billing","test/second"])
+        self.assertFalse(result["branches"])
+        result = task_reviews.lookup(self.root, {"key":["wt-007"],"repo":["test/second"]}, origin)
+        self.assertEqual(result["matches"][0]["matched_in"], ["source_branch","title"])
+        self.assertEqual(len(result["matches"]), 1)
+        for invalid in ({"key":["WT-7"]}, {"key":["WT-000"]}, {"key":["WT-007","WT-008"]},
+                        {"key":["WT-001"], "repo":["../bad"]}):
+            with self.assertRaises(ValueError):
+                task_reviews.lookup(self.root, invalid, origin)
+
+    def test_key_conflicts_require_explicit_link_and_identity_skips_receipt(self):
+        from unittest.mock import patch
+        origin = "http://127.0.0.1:8091"
+        page(self.root, self.query)
+        branch = "feature/WT-001-export"
+        git(self.repo, "update-ref", "refs/heads/"+branch, self.head)
+        git(self.repo, "update-ref", "refs/heads/WT-001-and-WT-003", self.head)
+        with closing(sqlite3.connect(self.repo / "weftgit.sqlite3")) as db, db:
+            db.execute("UPDATE prs SET source=?,title='[WT-002] tests for WT-002, notWT-005',state='merged'", (branch,))
+        with patch("task_reviews.release_receipts.lookup", side_effect=AssertionError("receipt computed twice")):
+            for key, other in (("WT-001","WT-002"),("WT-002","WT-001")):
+                found = task_reviews.lookup(self.root, {"key":[key],"details":["identity"]}, origin)
+                pr, = found["matches"]
+                self.assertEqual(pr["conflicting_keys"], [other])
+                self.assertIsNone(pr["merge_verified"])
+                self.assertNotIn(branch, [b["source_branch"] for b in found["branches"]])
+            found = task_reviews.lookup(self.root, {"key":["WT-001"], "details":["identity"]}, origin)
+            self.assertEqual(found["branches"][0]["conflicting_keys"], ["WT-003"])
 
     def test_changed_source_and_target(self):
         git(self.repo, "update-ref", "refs/heads/include-currency", self.base)

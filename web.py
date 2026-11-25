@@ -7,6 +7,7 @@ from io import BytesIO
 from http.cookies import CookieError, SimpleCookie
 import deployments
 import release_receipts
+import task_reviews
 import local_users
 import reviewers
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -563,11 +564,12 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return
         if self.serve_git(url):
             return
-        if url.path == "/api/release-receipt":
+        if url.path in ("/api/release-receipt", "/api/task-reviews"):
             content_type = "application/json"
             try:
-                result = release_receipts.lookup(GIT_ROOT, parse_qs(url.query, keep_blank_values=True),
-                                                 f"http://127.0.0.1:{self.server.server_port}")
+                lookup = task_reviews.lookup if url.path == "/api/task-reviews" else release_receipts.lookup
+                result = lookup(GIT_ROOT, parse_qs(url.query, keep_blank_values=True),
+                                f"http://127.0.0.1:{self.server.server_port}")
             except ValueError as error:
                 self.send_error(400, str(error))
                 return
@@ -594,7 +596,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return
         self.send_response(200)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        if url.path in ("/identity", "/repositories", "/api/release-receipt"):
+        if url.path in ("/identity", "/repositories", "/api/release-receipt", "/api/task-reviews"):
             self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()

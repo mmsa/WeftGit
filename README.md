@@ -56,6 +56,14 @@ curl "http://127.0.0.1:8091/api/release-receipt?repo=example/billing&commit=$COM
 
 Commit lookups verify inclusion in a published snapshot. Older publications without a recorded branch can verify a commit. To obtain a PR receipt for an older merge, publish the target branch again. Receipts describe local WeftGit publications and follow the same trusted-machine access model as repository browsing.
 
+Put the displayed WeftTrack task key in a source branch or PR title, such as `feature/WT-012-exports` or `[WT-012] Add exports`. WeftTrack can discover the matching review and distinguish a verified merge awaiting staging from a current staging publication or a previous publication after rollback. Matching is case-insensitive and uses the whole key, including its zero padding.
+
+```sh
+curl 'http://127.0.0.1:8091/api/task-reviews?key=WT-012'
+```
+
+The lookup returns all matching reviews across repositories and separately lists live matching branches without a review at their head. Add `&repo=project/repository` to narrow the search. Superseded snapshots are omitted. When several changes mention the same key, or the title and source branch name different tasks, use an explicit PR link to identify the intended change. Each candidate lists its other keys in `conflicting_keys`. Clients that fetch the receipt separately can request `details=identity` to skip duplicate Git and archive verification.
+
 ## Local accounts and storage
 
 The server binds to `127.0.0.1:8091` for use on a trusted machine. Open **Users** to create the first owner and add reviewer accounts. Once configured, password-backed sessions identify authors and reviewers. Deactivating an account revokes its sessions and preserves its review history. Git pushes, general review tasks, and merges remain available to local clients without signing in.

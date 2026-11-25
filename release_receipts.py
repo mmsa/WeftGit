@@ -35,7 +35,7 @@ def parse_request(params):
 
 def lookup(root, params, origin):
     slug, number, wanted = parse_request(params)
-    result = dict(verified=False, repository=slug, pull_request=number, reviewed_sha=None,
+    result = dict(verified=False, merge_verified=False, staging_status="unverified", repository=slug, pull_request=number, reviewed_sha=None,
                   commit_sha=None if number else wanted, merge_sha=None, target_branch=None,
                   releases=[], reason="No publication record is available for this repository.")
     repo = root / (slug + ".git")
@@ -60,6 +60,9 @@ def lookup(root, params, origin):
             if wanted and head != wanted:
                 result["reason"] = "The linked revision differs from the reviewed commit."
                 return result
+            if state in ("open", "declined", "superseded"):
+                result["staging_status"] = "unmerged"
+                return result
             if state != "merged" or not all(isinstance(s,str) and re.fullmatch(deployments.REVISION,s) for s in (head,base)):
                 return result
             markers = []
@@ -70,7 +73,7 @@ def lookup(root, params, origin):
             if len(set(markers)) != 1 or not all(ancestor(repo, sha, markers[0]) for sha in (base, head)):
                 return result
             revision = markers[0]
-            result["merge_sha"] = revision
+            result.update(merge_sha=revision, merge_verified=True)
             result["reason"] = "No recorded publication from the merge target verifies this pull request."
             if "merge_publication_order" not in tables:
                 return result
@@ -78,6 +81,7 @@ def lookup(root, params, origin):
             if not boundary:
                 return result
             floor = boundary[0]
+            result["staging_status"] = "awaiting_staging"
         else:
             result["reason"] = "No verified publication contains the linked commit."
             if git(repo, "rev-parse", "--verify", wanted+"^{commit}").stdout.decode().strip() != wanted:
@@ -98,12 +102,16 @@ def lookup(root, params, origin):
                 continue
             info = deployments.summary(repo, slug, env, sha, verify_revision=True)
             if not info["available"]:
+                if number and env == "staging":
+                    result["staging_status"] = "unverified"
                 continue
             result["releases"].append(dict(environment=env, published_sha=sha, published_at=created,
                 archive_url=origin+info["archive"], site_url=origin+info["site"] if info["site"] else None,
                 environment_url=f"{origin}/environments/{slug}/{env}/" if current and info["site"] else None,
                 current=current))
             matched.add(env)
+            if env == "staging":
+                result["staging_status"] = "staged" if current else "previously_staged"
     if result["releases"]:
         result.update(verified=True, reason="Verified against the published Git revision.")
     return result
