@@ -6,6 +6,7 @@ from html import escape
 from io import BytesIO
 from http.cookies import CookieError, SimpleCookie
 import deployments
+import release_receipts
 import local_users
 import reviewers
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -562,7 +563,19 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return
         if self.serve_git(url):
             return
-        if url.path == "/identity":
+        if url.path == "/api/release-receipt":
+            content_type = "application/json"
+            try:
+                result = release_receipts.lookup(GIT_ROOT, parse_qs(url.query, keep_blank_values=True),
+                                                 f"http://127.0.0.1:{self.server.server_port}")
+            except ValueError as error:
+                self.send_error(400, str(error))
+                return
+            except (OSError, sqlite3.Error, subprocess.SubprocessError):
+                self.send_error(503, "Release evidence is unavailable.")
+                return
+            payload = json.dumps(result).encode()
+        elif url.path == "/identity":
             content_type = "application/json"
             configured, actor = local_users.state(GIT_ROOT,self.cookie("weftgit_session_"))
             person = (actor["handle"] if actor else "") if configured else self.legacy_actor()
@@ -581,7 +594,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return
         self.send_response(200)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        if url.path in ("/identity", "/repositories"):
+        if url.path in ("/identity", "/repositories", "/api/release-receipt"):
             self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()

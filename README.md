@@ -6,6 +6,15 @@ A local Git host for reviewing code with people and coding assistants. Browse a 
 
 ![WeftGit pull request showing the changed file, review tasks, and merge readiness for a billing export](docs/preview.png)
 
+<details>
+<summary>Watch a requirement reach staging (28 seconds)</summary>
+
+![Screen recording of a requirement being claimed in WeftTrack, reviewed and merged in WeftGit, and opened from its verified staging receipt](docs/requirement-to-staging.gif)
+
+The recording follows two local apps from the original requirement to the exact commit behind **Open site**. The published site is a static release note.
+
+</details>
+
 ## Quickstart
 
 You need **Python 3.10+**, **Git 2.38+** on your PATH, and a browser. WeftGit uses the Python standard library and SQLite.
@@ -33,6 +42,19 @@ Open the local workspace and choose **Create example review** at the foot of the
 In a hosted repository, open **Deployments**, choose the branch and environment, then **Load revision → Publish snapshot**. Every published revision has a downloadable ZIP. If it contains a prebuilt `index.html` in the root, `dist/`, `build/`, `public/`, or `docs/`, **Open site** opens a sandboxed local preview. Revision links stay pinned. The environment link follows the latest publication.
 
 Static previews support relative links to packaged HTML, CSS, images, and fonts. Scripts, form submissions, and external assets are disabled in previews. Build execution, application servers, and remote deployment require a separate runner.
+
+### Verify a release from WeftTrack
+
+A linked pull request can show which local environments received the reviewed change. WeftGit checks its recorded merge result, the target branch used for publication, the published commit’s ancestry, and the registered ZIP’s embedded revision. Each environment shows its latest qualifying publication. After a rollback you can still open its pinned archive or site. A current environment link is available when that same publication still serves a site.
+
+The read-only loopback endpoint accepts either a PR number or a complete Git commit SHA. A PR lookup can also include the reviewed head SHA for an exact snapshot match.
+
+```sh
+curl 'http://127.0.0.1:8091/api/release-receipt?repo=example/billing&pr=1'
+curl "http://127.0.0.1:8091/api/release-receipt?repo=example/billing&commit=$COMMIT_SHA"
+```
+
+Commit lookups verify inclusion in a published snapshot. Older publications without a recorded branch can verify a commit. To obtain a PR receipt for an older merge, publish the target branch again. Receipts describe local WeftGit publications and follow the same trusted-machine access model as repository browsing.
 
 ## Local accounts and storage
 

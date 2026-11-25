@@ -14,6 +14,7 @@ import zipfile
 
 from deployments import publish, serve, summary
 from hosted import page
+from release_receipts import lookup
 
 
 class Response:
@@ -106,6 +107,26 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(self.fetch(release["site"]).wfile.getvalue(), b"Published before upgrade")
         self.assertEqual(self.fetch(release["archive"]).status, 200)
         self.assertFalse(self.db.exists())
+
+    def test_commit_receipt_site_links_and_mismatched_archive(self):
+        first = self.commit("index.html", "Version one")
+        self.deploy(first)
+        second = self.commit("index.html", "Version two")
+        self.deploy(second)
+        origin = "http://127.0.0.1:8091"
+        params = {"repo":["team/site"], "commit":[second]}
+        receipt = lookup(self.root, params, origin)["releases"][0]
+        self.assertEqual(receipt["environment_url"], origin+"/environments/team/site/staging/")
+        self.assertTrue(receipt["site_url"].endswith(second+"/"))
+        # Roll back to the older commit; the prior immutable site is still evidence.
+        self.git("push", "-q", "--force", "origin", first+":main")
+        self.deploy(first)
+        past = lookup(self.root, params, origin)["releases"][0]
+        self.assertIsNone(past["environment_url"])
+        self.assertEqual(past["site_url"], receipt["site_url"])
+        archives = self.repo / "deployments" / "staging"
+        (archives/(second+".zip")).write_bytes((archives/(first+".zip")).read_bytes())
+        self.assertFalse(lookup(self.root, params, origin)["verified"])
 
     def test_environment_tracks_latest_published_site(self):
         from web import ReaderHandler

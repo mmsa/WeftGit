@@ -150,10 +150,14 @@ def page(root, query, body=None, actor="", active_users=None):
             db.execute("UPDATE prs SET state='superseded' WHERE state='open' AND rowid IN (SELECT previous FROM review_history)")
             db.execute("CREATE UNIQUE INDEX open_pr_snapshot ON prs(source,target,head,base) WHERE state='open'")
             db.execute("PRAGMA user_version=2")
+        releases.prepare_receipts(db)
         # A process can stop after updating Git and before committing SQLite.
         markers = git(repo, "for-each-ref", "--format=%(refname:strip=3)", "refs/weftgit/merges", "refs/freethegit/merges").decode().splitlines()
         db.executemany("UPDATE prs SET state='merged' WHERE rowid=? AND state!='merged'",
                        ((marker,) for marker in markers if marker.isdecimal()))
+        db.execute("""INSERT OR IGNORE INTO merge_publication_order
+                      SELECT rowid, (SELECT COALESCE(MAX(rowid),0) FROM deployments)
+                      FROM prs WHERE state='merged' AND rowid NOT IN (SELECT pr FROM merge_publication_order)""")
         reviewers.prepare(db)
         prepare_reports(db)
         file_review.prepare(db)
@@ -228,6 +232,7 @@ def page(root, query, body=None, actor="", active_users=None):
                         form_error = merge_review(repo, int(selected_pr), *review[:4])
                         if not form_error:
                             db.execute("UPDATE prs SET state='merged' WHERE rowid=?", (selected_pr,))
+                            releases.note_merge(db, selected_pr)
                             notice = f"Changes merged into {review[1]}."
                 elif action in ("add-task", "add-anchored-task"):
                     note = data.get("note", [""])[0].strip()
@@ -267,7 +272,7 @@ def page(root, query, body=None, actor="", active_users=None):
                     form_error = "Choose a valid deployment environment."
                 else:
                     try:
-                        releases.publish(db, repo, environment, requested)
+                        releases.publish(db, repo, environment, requested, ref)
                     except (OSError, subprocess.SubprocessError):
                         form_error = "Could not package this revision. Check local disk space and repository availability, then retry."
                     else:

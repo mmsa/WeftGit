@@ -52,11 +52,14 @@ def site_root(archive):
     return None
 
 
-def summary(repo, slug, env, sha):
+def summary(repo, slug, env, sha, *, verify_revision=False):
     unavailable = dict(available=False, site=None, archive=None)
     try:
         packaged = archive_path(repo, env, sha)
         with zipfile.ZipFile(packaged) as archive:
+            # git archive embeds the source commit in the ZIP comment.
+            if verify_revision and archive.comment != sha.encode("ascii"):
+                return unavailable
             root = site_root(archive)
     except (TypeError, ValueError, OSError, zipfile.BadZipFile):
         return unavailable
@@ -65,7 +68,19 @@ def summary(repo, slug, env, sha):
                 archive=f"/artifacts/{identifier}.zip")
 
 
-def publish(db, repo, env, sha):
+def prepare_receipts(db):
+    if "source_ref" not in {c[1] for c in db.execute("PRAGMA table_info(deployments)")}:
+        db.execute("ALTER TABLE deployments ADD COLUMN source_ref TEXT")
+    db.execute("""CREATE TABLE IF NOT EXISTS merge_publication_order (
+        pr INTEGER PRIMARY KEY, prior_deployment INTEGER NOT NULL)""")
+
+
+def note_merge(db, number):
+    db.execute("""INSERT OR IGNORE INTO merge_publication_order
+                  SELECT ?, COALESCE(MAX(rowid), 0) FROM deployments""", (number,))
+
+
+def publish(db, repo, env, sha, source_ref=None):
     destination = archive_path(repo, env, sha)
     destination.parent.mkdir(parents=True, exist_ok=True)
     # Build alongside its destination, then publish a complete ZIP with one rename.
@@ -78,10 +93,14 @@ def publish(db, repo, env, sha):
             os.replace(temp_path, destination)
         finally:
             temp_path.unlink(missing_ok=True)
-    previous = db.execute("SELECT commit_id FROM deployments WHERE environment=? ORDER BY rowid DESC LIMIT 1",
+    # Pin the source commit so later branch deletion and Git GC preserve evidence.
+    subprocess.run(["git", f"--git-dir={repo}", "update-ref", f"refs/weftgit/deployments/{sha}", sha],
+                   check=True, capture_output=True, timeout=10)
+    previous = db.execute("SELECT rowid,commit_id,source_ref FROM deployments WHERE environment=? ORDER BY rowid DESC LIMIT 1",
                           (env,)).fetchone()
-    if previous != (sha,):
-        db.execute("INSERT INTO deployments(environment,commit_id) VALUES(?,?)", (env, sha))
+    last_merge_boundary = db.execute("SELECT COALESCE(MAX(prior_deployment),0) FROM merge_publication_order").fetchone()[0]
+    if not previous or previous[1:] != (sha, source_ref) or previous[0] <= last_merge_boundary:
+        db.execute("INSERT INTO deployments(environment,commit_id,source_ref) VALUES(?,?,?)", (env, sha, source_ref))
 
 
 def history_row(repo, slug, env, sha, created):
