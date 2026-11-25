@@ -8,6 +8,7 @@ import subprocess
 import unittest
 from urllib.parse import urlencode
 
+from release_receipts import lookup
 import file_review
 from agent_report import record
 from hosted import git, page
@@ -91,6 +92,56 @@ class ReviewLifecycleTests(unittest.TestCase):
         self.assertIn('class="review-state">Merged', page(self.root, self.query))
         self.assertEqual(self.rev("refs/freethegit/reviews/1/head"), self.head)
         self.assertFalse(current.exists())
+
+    def test_release_receipts_require_merged_target_and_actual_publication(self):
+        origin = "http://127.0.0.1:8091"
+        def receipt(**params):
+            return lookup(self.root, {"repo":["test/billing"], **{k:[v] for k,v in params.items()}}, origin)
+        def publish(branch, sha, env):
+            return page(self.root, "repo=test/billing", urlencode(dict(action="deploy", ref=branch, sha=sha, environment=env)))
+        self.assertIn("Published", publish("include-currency", self.head, "prod"))
+        self.assertTrue(receipt(commit=self.head)["verified"])
+        self.assertFalse(receipt(pr="1")["verified"])
+        self.assertIn("Changes merged", self.submit("merge"))
+        self.assertFalse(receipt(pr="1")["verified"])
+        self.assertIn("Published", publish("include-currency", self.head, "staging"))
+        self.assertFalse(receipt(pr="1")["verified"])
+        next_commit = git(self.repo, "-c", "user.name=Test", "-c", "user.email=t@example.test",
+                          "commit-tree", self.rev("main^{tree}"), "-p", self.head, "-m", "Next").decode().strip()
+        git(self.repo, "update-ref", "refs/heads/main", next_commit)
+        self.assertIn("Published", publish("main", next_commit, "prod"))
+        result = receipt(pr="1", head=self.head)
+        self.assertEqual((result["verified"],result["reviewed_sha"],result["merge_sha"]), (True,self.head,self.head))
+        self.assertFalse(receipt(pr="1", head=self.base)["verified"])
+        self.assertEqual(len(result["releases"]), 1)
+        release = result["releases"][0]
+        self.assertEqual(release["published_sha"], next_commit)
+        self.assertTrue(release["current"])
+        self.assertTrue(release["archive_url"].endswith(next_commit+".zip"))
+        self.assertEqual(self.rev("refs/weftgit/deployments/"+next_commit), next_commit)
+        git(self.repo, "update-ref", "refs/heads/main", self.base)
+        self.assertIn("Published", publish("main", self.base, "prod"))
+        past = receipt(pr="1")["releases"][0]
+        self.assertFalse(past["current"])
+        self.assertIsNone(past["environment_url"])
+        self.assertEqual(past["archive_url"], release["archive_url"])
+        (self.repo / "deployments" / "prod" / (next_commit+".zip")).unlink()
+        self.assertFalse(receipt(pr="1")["verified"])
+
+    def test_publication_before_merge_cannot_certify_review(self):
+        origin = "http://127.0.0.1:8091"
+        # The exact head was on the target and published before this PR was merged.
+        git(self.repo, "update-ref", "refs/heads/main", self.head)
+        post = urlencode(dict(action="deploy", ref="main", sha=self.head, environment="prod"))
+        page(self.root, self.query, post)
+        git(self.repo, "update-ref", "refs/heads/main", self.base)
+        self.submit("merge")
+        params = {"repo":["test/billing"], "pr":["1"]}
+        self.assertFalse(lookup(self.root, params, origin)["verified"])
+        page(self.root, self.query, post)
+        self.assertTrue(lookup(self.root, params, origin)["verified"])
+        git(self.repo, "update-ref", "refs/freethegit/merges/1", self.base)
+        self.assertFalse(lookup(self.root, params, origin)["verified"])
 
     def test_changed_source_and_target(self):
         git(self.repo, "update-ref", "refs/heads/include-currency", self.base)
