@@ -1,8 +1,8 @@
 const filter = document.getElementById("file-filter");
 if (filter) {
   const queryParams = new URLSearchParams(location.search);
-  const storageKey = "freethegit.file-filter." + queryParams.get("repo") + "." + queryParams.get("pr");
-  try { filter.value = sessionStorage.getItem(storageKey) || ""; } catch { /* Storage is optional. */ }
+  const storageKey = "weftgit.file-filter." + queryParams.get("repo") + "." + queryParams.get("pr");
+  try { filter.value = readWeftGitSetting(sessionStorage, storageKey) || ""; } catch { /* Storage is optional. */ }
   function applyFilter() {
     const query = filter.value.trim().toLowerCase();
     const items = document.querySelectorAll(".file-index li");

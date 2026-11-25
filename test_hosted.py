@@ -28,7 +28,7 @@ class ReviewLifecycleTests(unittest.TestCase):
         self.head = self.rev("include-currency")
         self.base = self.rev("main")
         # Old installations have a five-column table and pre-existing review rows.
-        with closing(sqlite3.connect(self.repo / "freethegit.sqlite3")) as db, db:
+        with closing(sqlite3.connect(self.repo / "weftgit.sqlite3")) as db, db:
             db.execute("CREATE TABLE prs(source TEXT,target TEXT,head TEXT,base TEXT,title TEXT,UNIQUE(head,base))")
             db.execute("INSERT INTO prs VALUES(?,?,?,?,?)", ("include-currency","main",self.head,self.base,"Review"))
 
@@ -71,11 +71,26 @@ class ReviewLifecycleTests(unittest.TestCase):
             results = list(pool.map(self.submit, ["merge", "merge"]))
         self.assertEqual(sum("Changes merged into main." in html for html in results), 1)
         self.assertEqual(self.rev("main"), self.head)
-        self.assertEqual(self.rev("refs/freethegit/merges/1"), self.head)
+        self.assertEqual(self.rev("refs/weftgit/merges/1"), self.head)
         self.assertIn("This pull request is merged.", self.submit("decline"))
-        with closing(sqlite3.connect(self.repo / "freethegit.sqlite3")) as db, db:
+        with closing(sqlite3.connect(self.repo / "weftgit.sqlite3")) as db, db:
             db.execute("UPDATE prs SET state='open'")
         self.assertIn('class="review-state">Merged', page(self.root, self.query))
+
+    def test_upgrade_retains_historical_review_report_and_merge_marker(self):
+        old = self.repo / "freethegit.sqlite3"
+        current = self.repo / "weftgit.sqlite3"
+        current.rename(old)
+        git(self.repo, "update-ref", "refs/freethegit/reviews/1/head", self.head)
+        self.submit("add-task", note="Check existing change", token="a" * 32)
+        record(self.root, "test/billing", 1, "Agent", "1", self.head, "Upgrade evidence", "Passed")
+        self.assertIn("Check existing change", page(self.root, self.query))
+        self.assertIn("Upgrade evidence", page(self.root, self.query))
+        self.assertEqual(repository_catalog(self.root)[0]["reviews"][0]["title"], "Review")
+        git(self.repo, "update-ref", "refs/freethegit/merges/1", self.head)
+        self.assertIn('class="review-state">Merged', page(self.root, self.query))
+        self.assertEqual(self.rev("refs/freethegit/reviews/1/head"), self.head)
+        self.assertFalse(current.exists())
 
     def test_changed_source_and_target(self):
         git(self.repo, "update-ref", "refs/heads/include-currency", self.base)
@@ -193,7 +208,7 @@ class ReviewLifecycleTests(unittest.TestCase):
         host.mkdir()
         self.repo.parent.rename(host / "test")
         self.repo = host / "test/billing.git"
-        with closing(sqlite3.connect(self.repo / "freethegit.sqlite3")) as db, db:
+        with closing(sqlite3.connect(self.repo / "weftgit.sqlite3")) as db, db:
             db.execute("UPDATE prs SET title='Private PR title'")
         risky_note = "Private reviewer note"
         page(host,self.query,urlencode(dict(action="add-task",note=risky_note,token="b"*32)))

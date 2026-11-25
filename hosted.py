@@ -1,4 +1,5 @@
 """Local hosted-repository operations for the browser."""
+from repository_store import database_path
 
 from html import escape
 from agent_report import prepare_reports
@@ -67,10 +68,10 @@ def merge_review(repo, number, source, target, head, base):
             tree = git(repo, "merge-tree", "--write-tree", base, head).decode().strip()
         except subprocess.CalledProcessError:
             return "Git could not merge these branches cleanly. Resolve the conflict locally and open a new review."
-        result = git(repo, "-c", "user.name=FreeTheGit", "-c", "user.email=reviews@localhost",
+        result = git(repo, "-c", "user.name=WeftGit", "-c", "user.email=reviews@localhost",
                      "commit-tree", tree, "-p", base, "-p", head, "-m", f"Merge pull request #{number}").decode().strip()
     commands = (f"verify {source_ref} {head}\nupdate {target_ref} {result} {base}\n"
-                f"create refs/freethegit/merges/{number} {result}\n")
+                f"create refs/weftgit/merges/{number} {result}\n")
     transaction = subprocess.run(["git", f"--git-dir={repo}", "update-ref", "--stdin"],
                                  input=commands.encode(), capture_output=True, timeout=10)
     return stale if transaction.returncode else ""
@@ -83,7 +84,7 @@ def open_review(db, repo, source, target, head, base, title, fresh=False):
     result = db.execute("INSERT OR IGNORE INTO prs(source,target,head,base,title) VALUES (?, ?, ?, ?, ?)",
                         (source, target, head, base, title))
     if result.rowcount:
-        snapshot = f"refs/freethegit/reviews/{result.lastrowid}"
+        snapshot = f"refs/weftgit/reviews/{result.lastrowid}"
         subprocess.run(["git", f"--git-dir={repo}", "update-ref", "--stdin"],
                        input=f"update {snapshot}/head {head}\nupdate {snapshot}/base {base}\n".encode(),
                        capture_output=True, check=True, timeout=10)
@@ -96,7 +97,7 @@ def page(root, query, body=None, actor="", active_users=None):
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}/[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}", slug):
         raise ValueError("Invalid repository")
     repo = root / (slug + ".git")
-    if repo.is_symlink() or repo.parent.is_symlink() or (repo / "freethegit.sqlite3").is_symlink() or not (repo / "HEAD").is_file():
+    if repo.is_symlink() or repo.parent.is_symlink() or database_path(repo).is_symlink() or not (repo / "HEAD").is_file():
         raise ValueError("Repository not found")
     posted = parse_qs(body or "")
     starting = posted.get("action") == ["start-readme"]
@@ -127,7 +128,7 @@ def page(root, query, body=None, actor="", active_users=None):
     if view not in ("source", "pulls", "deploys"):
         view = "source"
     selected_pr = fields.get("pr", [""])[0]
-    with closing(sqlite3.connect(repo / "freethegit.sqlite3")) as db, db:
+    with closing(sqlite3.connect(database_path(repo))) as db, db:
         db.execute("BEGIN IMMEDIATE")
         db.execute("CREATE TABLE IF NOT EXISTS prs (source TEXT, target TEXT, head TEXT, base TEXT, title TEXT, UNIQUE(head, base))")
         db.execute("CREATE TABLE IF NOT EXISTS deployments (environment TEXT, commit_id TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP)")
@@ -150,7 +151,7 @@ def page(root, query, body=None, actor="", active_users=None):
             db.execute("CREATE UNIQUE INDEX open_pr_snapshot ON prs(source,target,head,base) WHERE state='open'")
             db.execute("PRAGMA user_version=2")
         # A process can stop after updating Git and before committing SQLite.
-        markers = git(repo, "for-each-ref", "--format=%(refname:strip=3)", "refs/freethegit/merges").decode().splitlines()
+        markers = git(repo, "for-each-ref", "--format=%(refname:strip=3)", "refs/weftgit/merges", "refs/freethegit/merges").decode().splitlines()
         db.executemany("UPDATE prs SET state='merged' WHERE rowid=? AND state!='merged'",
                        ((marker,) for marker in markers if marker.isdecimal()))
         reviewers.prepare(db)
@@ -412,7 +413,7 @@ def page(root, query, body=None, actor="", active_users=None):
 <section data-pr-panel="details" id="review-details" aria-label="Review details">{people_panel}
 <h3>Review snapshot</h3><p class="snapshot-caption">{escape(source)} <code>{head[:8]}</code> compared with {escape(target)} <code>{base[:8]}</code>.</p>{previous}
 <h3 id="agent-reports">Agent reports</h3><ul class="record-list agent-reports">{"".join(report_items) or "<li>No agent reports attached.</li>"}</ul>
-<details><summary>Attach an agent report</summary><p>Run the local reporting command from the FreeTheGit checkout. Use a unique run ID and describe the tests performed.</p>
+<details><summary>Attach an agent report</summary><p>Run the local reporting command from the WeftGit checkout. Use a unique run ID and describe the tests performed.</p>
 <pre tabindex="0" aria-label="Agent report command">python3 agent_report.py --repo {escape(slug)} --pr {number} --sha {head} --agent my-agent --run review-1 --summary "Review findings" --tests "Test results"</pre></details></section>
 </article>'''
     history = "".join(releases.history_row(repo, slug, env, oid, created) for env, oid, created in deployments) if view == "deploys" else ""
@@ -446,8 +447,8 @@ def page(root, query, body=None, actor="", active_users=None):
     default_panel = "tasks" if posted.get("action") in (["add-task"], ["set-task"]) else "details" if posted.get("action") in (["signoff"], ["undo-signoff"], ["assign"], ["unassign"]) else "files"
     notice_link = '<a href="#review-tasks">View tasks</a>' if posted.get("action") == ["add-anchored-task"] else ""
     return f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{escape(slug)} · Freethegit</title><link rel="stylesheet" href="/reader.css"><link rel="stylesheet" href="/pipelines.css">
-<link rel="stylesheet" href="/hosted.css"><script src="/hosted.js" defer></script><script src="/identity.js" defer></script><script src="/file-filter.js" defer></script><body class="product hosted" data-default-panel="{default_panel}"><header class="app-bar"><a class="brand" href="/">freethegit</a><nav aria-label="Main navigation"><a href="/#reviews">Pull requests</a><a href="/#repositories">Repositories</a><a href="/#local-deployments">Deployments</a><a href="/#pipelines">Pipelines</a><a href="/users">Users</a></nav></header>
+<title>{escape(slug)} · WeftGit</title><link rel="stylesheet" href="/reader.css"><link rel="stylesheet" href="/pipelines.css">
+<link rel="stylesheet" href="/hosted.css"><script src="/hosted.js" defer></script><script src="/identity.js" defer></script><script src="/browser-storage.js" defer></script><script src="/file-filter.js" defer></script><body class="product hosted" data-default-panel="{default_panel}"><header class="app-bar"><a class="brand" href="/">WeftGit</a><nav aria-label="Main navigation"><a href="/#reviews">Pull requests</a><a href="/#repositories">Repositories</a><a href="/#local-deployments">Deployments</a><a href="/#pipelines">Pipelines</a><a href="/users">Users</a></nav></header>
 <main class="repository-page"><div class="repository-heading"><div class="repo-path"><span>{escape(project)}</span><span aria-hidden="true">/</span>{repo_title}{pr_path}</div><div id="local-identity"></div></div>
 <nav class="repo-tabs" aria-label="Repository">{''.join(tabs)}</nav>
 {f'<p class="result" role="status">{escape(notice)} {notice_link}</p>' if notice else ''}

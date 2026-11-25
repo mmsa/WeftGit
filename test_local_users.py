@@ -31,7 +31,7 @@ class UserDirectoryTests(TestCase):
             tokens = list(executor.map(bootstrap,range(2)))
         self.assertEqual(sum(bool(t) for t in tokens),1)
         owner = next(t for t in tokens if t)
-        for fake_token in ("","owner","freethegit_actor_8091=owner"):
+        for fake_token in ("","owner","weftgit_actor_8091=owner"):
             with self.assertRaises(local_users.Denied):
                 self.call("add",fake_token,handle="fake",name="Fake",password="long-password")
         self.call("add",owner,handle="ADMIN",name="Office admin",role="admin",password="long-password")
@@ -64,7 +64,7 @@ class UserDirectoryTests(TestCase):
     def test_import_historical_handles_even_with_a_bad_repository(self):
         for name in ("broken","existing"):
             (self.root/"team"/(name+".git")).mkdir(parents=True)
-        (self.root/"team/broken.git/freethegit.sqlite3").write_bytes(b"broken")
+        (self.root/"team/broken.git/weftgit.sqlite3").write_bytes(b"broken")
         with closing(sqlite3.connect(self.root/"team/existing.git/freethegit.sqlite3")) as db, db:
             db.execute("CREATE TABLE pr_authors(pr INTEGER PRIMARY KEY, person TEXT NOT NULL)")
             db.execute("INSERT INTO pr_authors VALUES(1,'legacy')")

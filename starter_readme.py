@@ -22,7 +22,7 @@ def add_readme(repo, project, description):
             return "This README is already saved."
         raise ValueError("This repository already has commits. Open its files to see the latest version.")
 
-    commit = git("-c", "user.name=FreeTheGit", "-c", "user.email=workspace@localhost",
+    commit = git("-c", "user.name=WeftGit", "-c", "user.email=workspace@localhost",
                  "commit-tree", tree, "-m", "Add project README")
     try:
         git("update-ref", branch, commit, "0" * len(commit))

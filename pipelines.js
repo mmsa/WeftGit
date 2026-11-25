@@ -1,6 +1,6 @@
 const byId = (id) => document.getElementById(id);
 const types = ["Build", "Test", "Deploy"];
-const storageKey = "freethegit.pipelines.v1";
+const storageKey = "weftgit.pipelines.v1";
 const example = [{
   name: "Billing exports",
   repos: [{
@@ -68,13 +68,13 @@ function loadWorkspace(raw) {
 }
 
 function rememberSelection() {
-  try { sessionStorage.setItem("freethegit.selection", JSON.stringify([projectIndex, repoIndex])); }
+  try { sessionStorage.setItem("weftgit.selection", JSON.stringify([projectIndex, repoIndex])); }
   catch { /* Selection is optional when browser storage is unavailable. */ }
 }
 
 try {
-  loadWorkspace(localStorage.getItem(storageKey));
-  const selected = JSON.parse(sessionStorage.getItem("freethegit.selection"));
+  loadWorkspace(readWeftGitSetting(localStorage, storageKey));
+  const selected = JSON.parse(readWeftGitSetting(sessionStorage, "weftgit.selection"));
   if (Array.isArray(selected) && Number.isInteger(selected[0]) && projects[selected[0]]) {
     projectIndex = selected[0];
     if (Number.isInteger(selected[1]) && projects[projectIndex].repos[selected[1]]) repoIndex = selected[1];
@@ -94,7 +94,7 @@ function button(label, action, disabled = false) {
 async function save() {
   render();
   function write() {
-    const latest = localStorage.getItem(storageKey);
+    const latest = readWeftGitSetting(localStorage, storageKey);
     if (latest !== savedWorkspace) {
       loadWorkspace(latest);
       projectIndex = projects[projectIndex] ? projectIndex : 0;
@@ -436,13 +436,16 @@ async function loadDirectory() {
     const search = byId("directory-search");
     const personal = byId("personal-filter");
     const person = identity?.person || "";
-    const preferenceKey = "freethegit_inbox_" + location.port + "_" + person;
+    const preferenceKey = "weftgit_inbox_" + location.port + "_" + person;
     let preference = "all";
     if (person) {
-      const cookie = document.cookie.split("; ").find(value => value.startsWith(preferenceKey + "="));
-      if (cookie) preference = cookie.slice(preferenceKey.length + 1);
+      const cookies = document.cookie.split("; ");
+      const legacyKey = preferenceKey.replace(/^weftgit/, "freethegit");
+      const cookie = cookies.find(value => value.startsWith(preferenceKey + "="))
+        || cookies.find(value => value.startsWith(legacyKey + "="));
+      if (cookie) preference = cookie.split("=")[1];
       else {
-        try { preference = localStorage.getItem(preferenceKey) || "all"; }
+        try { preference = readWeftGitSetting(localStorage, preferenceKey) || "all"; }
         catch { /* Storage can be disabled in a private window. */ }
       }
     }
@@ -537,7 +540,7 @@ function showPage() {
   document.querySelectorAll("[data-page]").forEach(link => {
     if (link.dataset.page === page) {
       link.setAttribute("aria-current", "page");
-      document.title = link.textContent + " · FreeTheGit";
+      document.title = link.textContent + " · WeftGit";
     } else link.removeAttribute("aria-current");
   });
   drawDirectory?.();

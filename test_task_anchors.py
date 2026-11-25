@@ -55,7 +55,7 @@ class AnchoredTaskTests(unittest.TestCase):
         return page(self.root,self.query+"&changed="+key,urlencode(data))
 
     def context(self):
-        with closing(sqlite3.connect(self.repo/"freethegit.sqlite3")) as db, db:
+        with closing(sqlite3.connect(self.repo/"weftgit.sqlite3")) as db, db:
             return db.execute("""SELECT t.pr,a.origin_pr,a.side,a.revision,a.line,a.excerpt,a.path
                               FROM review_tasks t LEFT JOIN task_anchors a ON a.task=t.id ORDER BY t.id""").fetchall()
 

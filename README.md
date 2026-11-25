@@ -1,30 +1,30 @@
-# FreeTheGit
+# WeftGit
 
 A local Git host for reviewing code with people and coding assistants. Browse a repository, review a pull request, and publish a static snapshot on your machine. Review tasks stay linked to the original lines, even after a later push renames the file.
 
 [Quickstart](#quickstart) · [Review a change](#review-a-change) · [Publish a snapshot](#publish-a-snapshot) · [Local accounts and storage](#local-accounts-and-storage) · [Development](#development)
 
-![FreeTheGit pull request showing the changed file, review tasks, and merge readiness for a billing export](docs/preview.png)
+![WeftGit pull request showing the changed file, review tasks, and merge readiness for a billing export](docs/preview.png)
 
 ## Quickstart
 
-You need **Python 3.10+**, **Git 2.38+** on your PATH, and a browser. FreeTheGit uses the Python standard library and SQLite.
+You need **Python 3.10+**, **Git 2.38+** on your PATH, and a browser. WeftGit uses the Python standard library and SQLite.
 
 ```sh
-git clone https://github.com/mmsa/freethegit.git
-cd freethegit
+git clone https://github.com/mmsa/WeftGit.git
+cd WeftGit
 python3 web.py
 ```
 
-Open the local workspace and choose **Create example review** at the foot of the **Pull requests** page. It creates a real Git repository with two branches and a small change to a billing export. To start your own project, choose **Repositories → New repository**. On its Code page, describe what you want to build and select **Create README.md** to make the first Git commit from the browser. If you already have a local project, expand **Push an existing Git project** and run the command from your project directory. [Open FreeTheGit](http://127.0.0.1:8091/)
+Open the local workspace and choose **Create example review** at the foot of the **Pull requests** page. It creates a real Git repository with two branches and a small change to a billing export. To start your own project, choose **Repositories → New repository**. On its Code page, describe what you want to build and select **Create README.md** to make the first Git commit from the browser. If you already have a local project, expand **Push an existing Git project** and run the command from your project directory. [Open WeftGit](http://127.0.0.1:8091/)
 
 ## Review a change
 
 1. **Read the diff.** Open a pull request and choose a changed file. Click a line number to add a task to the before or after version. Whole-file tasks work for binary files too.
 2. **Review a later push.** Choose **Open fresh review**. Unresolved tasks carry forward with links to their original code. Unchanged files keep their shared review marks. Personal sign-offs stay with the commits each person saw.
-3. **Merge the reviewed commits.** Resolve the open tasks and select **Merge pull request**. FreeTheGit rechecks both branch tips and reports stale revisions or conflicts before changing the target branch.
+3. **Merge the reviewed commits.** Resolve the open tasks and select **Merge pull request**. WeftGit rechecks both branch tips and reports stale revisions or conflicts before changing the target branch.
 
-**Review with an assistant.** Choose **Copy review brief** on a pull request and paste it into an assistant with access to the FreeTheGit checkout. The brief specifies the reviewed commits, the full change to inspect, and where to find open tasks. To inspect it yourself, expand **Review brief and Git commands**. The commands read the saved objects directly from the hosted repository, so a later push does not change the comparison.
+**Review with an assistant.** Choose **Copy review brief** on a pull request and paste it into an assistant with access to the WeftGit checkout. The brief specifies the reviewed commits, the full change to inspect, and where to find open tasks. To inspect it yourself, expand **Review brief and Git commands**. The commands read the saved objects directly from the hosted repository, so a later push does not change the comparison.
 
 **Attach the results.** In **Review details → Attach an agent report**, copy the command generated for that PR. It records the agent's findings, test results, run ID, and reviewed commit. Add `--work-item` and `--work-url` to link a requirement in a local WeftTrack workspace. Reviewers can see when a report refers to an earlier revision.
 
@@ -40,6 +40,8 @@ The server binds to `127.0.0.1:8091` for use on a trusted machine. Open **Users*
 
 Bare repositories, SQLite records, accounts, and published archives live under `.repositories/` in the checkout. The pipeline editor stores its project and stage configuration in the browser. Back up the server directory and retain the browser profile if you need both.
 
+Upgrading from FreeTheGit? Keep the existing checkout and its `.repositories/` directory. Start WeftGit on the same port and open it in your usual browser profile. Existing reviews, account sessions, pipeline settings, Git remotes and published URLs continue to work.
+
 ## Development
 
 Run the full regression suite from the repository root. Tests create disposable Git repositories and databases.
@@ -50,6 +52,6 @@ python3 -m unittest discover -v
 
 The bundled field guide follows a team shipping scheduled CSV exports. Read it in the browser, use the Markdown guides directly, or run `python3 fieldguide.py list` to see chapter IDs. The CLI also supports `show`, `search`, `related`, and `graph`. [Browser field guide](http://127.0.0.1:8091/guide) · [Repository hosting](guides/repo-host.md) · [Work tracking](guides/work-tracker.md)
 
-To connect a review to its original requirement, run the companion work tracker alongside FreeTheGit. [WeftTrack on GitHub](https://github.com/mmsa/WeftTrack)
+To connect a review to its original requirement, run the companion work tracker alongside WeftGit. [WeftTrack on GitHub](https://github.com/mmsa/WeftTrack)
 
 Code and documentation are released under the [MIT license](LICENSE).

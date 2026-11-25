@@ -15,7 +15,7 @@ class DirectoryTests(unittest.TestCase):
             repo = root / "team" / "web.git"
             repo.mkdir(parents=True)
             (repo / "HEAD").write_text("ref: refs/heads/main")
-            database = repo / "freethegit.sqlite3"
+            database = repo / "weftgit.sqlite3"
             self.assertEqual(repository_catalog(root), [{"name": "team/web", "reviews": []}])
             self.assertFalse(database.exists())
             with closing(sqlite3.connect(database)) as db, db:

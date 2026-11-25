@@ -1,4 +1,5 @@
 """Attach a local agent's review evidence to a hosted pull request."""
+from repository_store import database_path
 import argparse
 from pathlib import Path
 import re
@@ -20,7 +21,7 @@ def record(root, repo, pr, agent, run, sha, summary, tests, work_item="", work_u
     if not re.fullmatch(r"[a-zA-Z0-9][\w-]{0,63}/[a-zA-Z0-9][\w-]{0,63}", repo, re.ASCII):
         raise ValueError("Enter a hosted repository as project/name.")
     repo_path = root / (repo + ".git")
-    db_path = repo_path / "freethegit.sqlite3"
+    db_path = database_path(repo_path)
     if repo_path.parent.is_symlink() or repo_path.is_symlink() or db_path.is_symlink() or not db_path.is_file():
         raise ValueError("Open an existing pull request before attaching a report.")
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):

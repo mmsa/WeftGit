@@ -47,7 +47,7 @@ class DeploymentTests(unittest.TestCase):
         self.git("init", "-q", "--bare", "--initial-branch=main", str(self.repo))
         self.git("remote", "add", "origin", str(self.repo))
         self.query = "repo=team/site&view=deploys"
-        self.db = self.repo / "freethegit.sqlite3"
+        self.db = self.repo / "weftgit.sqlite3"
 
     def git(self, *args):
         return subprocess.check_output(["git", "-C", str(self.work), "-c", "user.name=Test",
@@ -97,6 +97,15 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn(f'name="sha" value="{third}"', form)
         self.assertIn("Published", self.deploy(third, "prod", "next"))
         self.assertIn(b"v1", self.fetch(site).wfile.getvalue())
+
+    def test_upgrade_preserves_immutable_archive_and_site_urls(self):
+        sha = self.commit("index.html", "Published before upgrade")
+        self.deploy(sha)
+        release = summary(self.repo, "team/site", "staging", sha)
+        self.db.rename(self.repo / "freethegit.sqlite3")
+        self.assertEqual(self.fetch(release["site"]).wfile.getvalue(), b"Published before upgrade")
+        self.assertEqual(self.fetch(release["archive"]).status, 200)
+        self.assertFalse(self.db.exists())
 
     def test_environment_tracks_latest_published_site(self):
         from web import ReaderHandler

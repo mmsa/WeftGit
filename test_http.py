@@ -1,4 +1,5 @@
 from io import BytesIO
+from types import SimpleNamespace
 import unittest
 from web import ReaderHandler
 
@@ -25,6 +26,16 @@ class HttpInputTests(unittest.TestCase):
             request = Handler("/identity", body, **{"Content-Length":length})
             request.do_POST()
             self.assertEqual(request.errors, [expected])
+
+    def test_session_and_actor_cookie_compatibility(self):
+        request = SimpleNamespace(headers={}, server=SimpleNamespace(server_port=8091))
+        for kind in ("actor", "session"):
+            prefix = "weftgit_" + kind + "_"
+            legacy = "freethegit_" + kind + "_8091=old"
+            request.headers["Cookie"] = legacy
+            self.assertEqual(ReaderHandler.cookie(request, prefix), "old")
+            request.headers["Cookie"] = legacy + "; " + prefix + "8091=current"
+            self.assertEqual(ReaderHandler.cookie(request, prefix), "current")
 
     def test_chunked_git_and_size_limit(self):
         good = Handler("/", b"3\r\nabc\r\n4\r\ndefg\r\n0\r\n\r\n", **{"Transfer-Encoding":"chunked"})

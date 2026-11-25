@@ -1,5 +1,7 @@
 # Repository Host field guide
 
+For a hands-on WeftGit walkthrough, open **Pull requests** and choose **Create example review** to review a billing change in a local Git repository.
+
 Examples use generic names and placeholder hosts. Product-specific plans, dates, and settings are historical reference details and may differ from your deployment. Cloud refers to Vendor-hosted Repository Host. Data Center refers to self-managed Repository Host. In the running example, the Billing team ships scheduled CSV exports, tracked as Work Tracker work item BILL-42.
 
 <!-- repo-host-git -->

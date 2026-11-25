@@ -1,4 +1,5 @@
 """Publish immutable Git archives and stream their prebuilt static contents."""
+from repository_store import database_path
 from contextlib import closing
 from html import escape
 from pathlib import Path
@@ -106,7 +107,7 @@ def serve(handler, root, path):
     started = False
     try:
         packaged = archive_path(repo, env, sha)
-        database = repo / "freethegit.sqlite3"
+        database = database_path(repo)
         if database.is_symlink() or not database.is_file() or not packaged.is_file():
             raise ValueError()
         with closing(sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True)) as db:

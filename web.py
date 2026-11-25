@@ -1,4 +1,5 @@
 """Serve the field guide and the WeftTrack example on loopback."""
+from repository_store import database_path
 
 from contextlib import closing
 from html import escape
@@ -164,8 +165,8 @@ def reader(params):
     reset = '<a class="reset" href="/guide">Clear search</a>' if query else ""
     return f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Freethegit Field Guide</title><link rel="stylesheet" href="/reader.css"><script src="/navigation.js" defer></script></head>
-<body><header class="app-bar"><a class="brand" href="/">freethegit</a><nav aria-label="Main navigation"><a  href="/">Workspace</a><a href="/#local-deployments">Local deployments</a><a href="/users">Users</a><a aria-current="page" href="/guide">Field guide</a><a href="http://127.0.0.1:8090/#graph">WeftTrack ↗</a></nav></header>
+<title>WeftGit Field Guide</title><link rel="stylesheet" href="/reader.css"><script src="/navigation.js" defer></script></head>
+<body><header class="app-bar"><a class="brand" href="/">WeftGit</a><nav aria-label="Main navigation"><a  href="/">Workspace</a><a href="/#local-deployments">Local deployments</a><a href="/users">Users</a><a aria-current="page" href="/guide">Field guide</a><a href="http://127.0.0.1:8090/#graph">WeftTrack ↗</a></nav></header>
 <div class="guide-search"><form action="/guide"><label for="query">Search chapters</label>
 <input id="query" name="q" type="search" value="{escape(query, quote=True)}" placeholder="Search chapters">
 <button>Search</button></form></div>
@@ -174,6 +175,7 @@ def reader(params):
 
 
 ASSETS = {
+    "/browser-storage.js": ("browser-storage.js", "text/javascript"),
     "/file-filter.js": ("file-filter.js", "text/javascript"),
     "/": ("pipelines.html", "text/html"),
     "/hosted.css": ("hosted.css", "text/css"),
@@ -200,7 +202,7 @@ def repository_catalog(root, actor=""):
         if not all(re.fullmatch(REPOSITORY, part) for part in (repo.parent.name, repo.stem)):
             continue
         entry = {"name": repo.parent.name + "/" + repo.stem, "reviews": []}
-        database = repo / "freethegit.sqlite3"
+        database = database_path(repo)
         if database.is_file() and not database.is_symlink():
             try:
                 with closing(sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True)) as db:
@@ -237,7 +239,7 @@ def create_review_example(repo):
     """Populate a newly created repository with a small, reviewable change."""
     with TemporaryDirectory() as checkout:
         def run(*args):
-            subprocess.run(["git", "-C", checkout, "-c", "user.name=FreeTheGit example",
+            subprocess.run(["git", "-C", checkout, "-c", "user.name=WeftGit example",
                             "-c", "user.email=example@localhost", *args],
                            check=True, capture_output=True, timeout=10)
         run("init", "--initial-branch=main")
@@ -256,24 +258,25 @@ class ReaderHandler(BaseHTTPRequestHandler):
         cookies = SimpleCookie()
         try:
             cookies.load(self.headers.get("Cookie", ""))
-            value = cookies.get(prefix + str(self.server.server_port))
+            port = str(self.server.server_port)
+            value = cookies.get(prefix + port) or cookies.get(prefix.replace("weftgit_", "freethegit_", 1) + port)
             return value.value if value else ""
         except CookieError:
             return ""
 
     def legacy_actor(self):
         try:
-            name = self.cookie("freethegit_actor_")
+            name = self.cookie("weftgit_actor_")
             return reviewers.handle(name) if name else ""
         except ValueError:
             return ""
 
     def local_actor(self):
-        configured, actor = local_users.state(GIT_ROOT,self.cookie("freethegit_session_"))
+        configured, actor = local_users.state(GIT_ROOT,self.cookie("weftgit_session_"))
         return (actor["handle"] if actor else "") if configured else self.legacy_actor()
 
     def user_page(self, params, data=None):
-        token = self.cookie("freethegit_session_")
+        token = self.cookie("weftgit_session_")
         return_to = local_users.safe_return(params.get("return","/users"))
         error, status = "", 200
         if data is not None:
@@ -286,7 +289,8 @@ class ReaderHandler(BaseHTTPRequestHandler):
                 self.send_header("Cache-Control","no-store")
                 if new_token is not None:
                     age = local_users.SESSION_SECONDS if new_token else 0
-                    self.send_header("Set-Cookie", f"freethegit_session_{self.server.server_port}={new_token}; Path=/; SameSite=Strict; HttpOnly; Max-Age={age}")
+                    self.send_header("Set-Cookie", f"weftgit_session_{self.server.server_port}={new_token}; Path=/; SameSite=Strict; HttpOnly; Max-Age={age}")
+                    self.send_header("Set-Cookie", f"freethegit_session_{self.server.server_port}=; Path=/; SameSite=Strict; HttpOnly; Max-Age=0")
                 self.end_headers()
                 return
             except local_users.Denied as problem:
@@ -331,7 +335,8 @@ class ReaderHandler(BaseHTTPRequestHandler):
                 return
             self.send_response(204)
             age = 31536000 if actor else 0
-            self.send_header("Set-Cookie", f"freethegit_actor_{self.server.server_port}={actor}; Path=/; SameSite=Strict; HttpOnly; Max-Age={age}")
+            self.send_header("Set-Cookie", f"weftgit_actor_{self.server.server_port}={actor}; Path=/; SameSite=Strict; HttpOnly; Max-Age={age}")
+            self.send_header("Set-Cookie", f"freethegit_actor_{self.server.server_port}=; Path=/; SameSite=Strict; HttpOnly; Max-Age=0")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
@@ -472,8 +477,9 @@ class ReaderHandler(BaseHTTPRequestHandler):
         if body is None:
             return True
         env = dict(os.environ, GIT_PROJECT_ROOT=str(GIT_ROOT), GIT_HTTP_EXPORT_ALL="1",
-                   GIT_CONFIG_COUNT="2", GIT_CONFIG_KEY_1="transfer.hideRefs", GIT_CONFIG_VALUE_1="refs/freethegit/",
-                   GIT_CONFIG_KEY_0="http.receivepack", GIT_CONFIG_VALUE_0="true",
+                   GIT_CONFIG_COUNT="3", GIT_CONFIG_KEY_0="http.receivepack", GIT_CONFIG_VALUE_0="true",
+                   GIT_CONFIG_KEY_1="transfer.hideRefs", GIT_CONFIG_VALUE_1="refs/weftgit/",
+                   GIT_CONFIG_KEY_2="transfer.hideRefs", GIT_CONFIG_VALUE_2="refs/freethegit/",
                    PATH_INFO=url.path.removeprefix("/git"), QUERY_STRING=url.query,
                    REQUEST_METHOD=self.command, CONTENT_TYPE=self.headers.get("Content-Type", ""),
                    CONTENT_LENGTH=str(len(body)), HTTP_GIT_PROTOCOL=self.headers.get("Git-Protocol", ""))
@@ -498,7 +504,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
 
     def serve_hosted(self, query, body=None):
         try:
-            with local_users.reviewer_context(GIT_ROOT,self.cookie("freethegit_session_"),body is not None) as (person,active):
+            with local_users.reviewer_context(GIT_ROOT,self.cookie("weftgit_session_"),body is not None) as (person,active):
                 actor = self.legacy_actor() if active is None else person
                 payload = hosted_page(GIT_ROOT, query, body, actor, active).encode()
         except ValueError as error:
@@ -520,7 +526,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return
         slug, env = match.groups()
         repo = GIT_ROOT / (slug + ".git")
-        database = repo / "freethegit.sqlite3"
+        database = database_path(repo)
         if repo.is_symlink() or repo.parent.is_symlink() or database.is_symlink() or not database.is_file():
             self.send_error(404, "No release in this environment")
             return
@@ -558,7 +564,7 @@ class ReaderHandler(BaseHTTPRequestHandler):
             return
         if url.path == "/identity":
             content_type = "application/json"
-            configured, actor = local_users.state(GIT_ROOT,self.cookie("freethegit_session_"))
+            configured, actor = local_users.state(GIT_ROOT,self.cookie("weftgit_session_"))
             person = (actor["handle"] if actor else "") if configured else self.legacy_actor()
             payload = json.dumps({"person":person,"managed":configured,"name":actor["name"] if actor else ""}).encode()
         elif url.path == "/repositories":
@@ -584,5 +590,5 @@ class ReaderHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     with ThreadingHTTPServer(("127.0.0.1", 8091), ReaderHandler) as server:
-        print("Freethegit is ready at http://127.0.0.1:8091/", flush=True)
+        print("WeftGit is ready at http://127.0.0.1:8091/", flush=True)
         server.serve_forever()

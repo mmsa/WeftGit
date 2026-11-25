@@ -1,4 +1,5 @@
 """Persistent local accounts and verified browser sessions for reviewer attribution."""
+from repository_store import database_path
 from contextlib import closing, contextmanager
 from hashlib import pbkdf2_hmac, sha256
 from html import escape
@@ -68,7 +69,10 @@ def issue(db, actor):
 
 def import_handles(root, db):
     """Keep historical names visible for an owner to activate with credentials."""
-    for path in root.glob("*/*.git/freethegit.sqlite3"):
+    for bare in root.glob("*/*.git"):
+        path = database_path(bare)
+        if not path.is_file():
+            continue
         if any(p.is_symlink() for p in (path,path.parent,path.parent.parent)):
             continue
         historical = set()
@@ -249,6 +253,6 @@ def page(root, token, return_to="/users", error="", draft=None):
                  '<button class="quiet" name="action" value="logout">Sign out</button></form>') if current else ""
     notice = f'<p class="form-error" role="alert">{escape(error)}</p>' if error else ""
     return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Users · FreeTheGit</title><link rel="stylesheet" href="/reader.css"><link rel="stylesheet" href="/pipelines.css"><link rel="stylesheet" href="/users.css">
-<body class="product"><header class="app-bar"><a class="brand" href="/">freethegit</a><nav aria-label="Main navigation"><a href="/#reviews">Pull requests</a><a href="/#repositories">Repositories</a><a href="/#local-deployments">Deployments</a><a href="/#pipelines">Pipelines</a><a href="/users" aria-current="page">Users</a></nav></header>
+<title>Users · WeftGit</title><link rel="stylesheet" href="/reader.css"><link rel="stylesheet" href="/pipelines.css"><link rel="stylesheet" href="/users.css">
+<body class="product"><header class="app-bar"><a class="brand" href="/">WeftGit</a><nav aria-label="Main navigation"><a href="/#reviews">Pull requests</a><a href="/#repositories">Repositories</a><a href="/#local-deployments">Deployments</a><a href="/#pipelines">Pipelines</a><a href="/users" aria-current="page">Users</a></nav></header>
 <main class="users-page"><div class="user-header"><h1>Users</h1>{actor_bar}</div>{notice}{content}</main></body></html>'''
