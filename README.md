@@ -2,6 +2,8 @@
 
 A local Git host for reviewing code with people and coding assistants. Browse a repository, review a pull request, and publish a static snapshot on your machine. Review tasks stay linked to the original lines, even after a later push renames the file.
 
+**Which commit reached staging?** [Open the read-only example](https://weft-release-example.mmsa12.chatgpt.site/) to inspect a sample task and follow its published commit to the exact page. [Watch the captioned walkthrough](https://weft-release-example.mmsa12.chatgpt.site/#walkthrough).
+
 [Quickstart](#quickstart) · [Review a change](#review-a-change) · [Publish a snapshot](#publish-a-snapshot) · [Local accounts and storage](#local-accounts-and-storage) · [Development](#development)
 
 ![WeftGit pull request showing the changed file, review tasks, and merge readiness for a billing export](docs/preview.png)
